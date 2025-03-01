@@ -12,11 +12,11 @@ import { AddressesModule } from './addresses/addresses.module';
   imports: [
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: 'localhost',
-      port: 3306,
-      username: 'root',
-      password: 'root',
-      database: 'omni',
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
+      username: process.env.DB_USERNAME || 'root',
+      password: process.env.DB_PASSWORD || 'root',
+      database: process.env.DB_DATABASE || 'example',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: true,
     }),
