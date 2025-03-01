@@ -4,7 +4,7 @@ import { TicketMessagesController } from './ticket_messages.controller';
 import { TicketMessagesService } from './ticket_messages.service';
 import { TicketsModule } from 'src/tickets/tickets.module';
 import { PhonesModule } from 'src/phones/phones.module';
-import { TicketMessage } from './entities/ticket-message.entity';
+import { TicketMessage } from './entities/ticket_message.entity';
 
 @Module({
   imports: [
