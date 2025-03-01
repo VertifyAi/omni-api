@@ -1,5 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { TicketMessagesService } from './ticket-messages.service';
+import { TicketMessagesService } from './ticket_messages.service';
 import { HandleWebhookDto } from './dto/handle-webhook.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 

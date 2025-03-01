@@ -5,8 +5,8 @@ import { TicketsService } from './tickets.service';
 import { Ticket } from './entities/ticket.entity';
 import { Phone } from 'src/phones/entities/phone.entity';
 import { PhonesModule } from 'src/phones/phones.module';
-import { TicketMessagesModule } from 'src/ticket-messages/ticket-messages.module';
-import { TicketMessage } from 'src/ticket-messages/entities/ticket-message.entity';
+import { TicketMessagesModule } from 'src/ticket_messages/ticket_messages.module';
+import { TicketMessage } from 'src/ticket_messages/entities/ticket-message.entity';
 
 @Module({
   imports: [
