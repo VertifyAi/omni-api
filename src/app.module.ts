@@ -4,7 +4,7 @@ import { UsersModule } from './users/users.module';
 import { CompaniesModule } from './companies/companies.module';
 import { AreasModule } from './areas/areas.module';
 import { TicketsModule } from './tickets/tickets.module';
-import { TicketMessagesModule } from './ticket-messages/ticket-messages.module';
+import { TicketMessagesModule } from './ticket_messages/ticket_messages.module';
 import { PhonesModule } from './phones/phones.module';
 import { AddressesModule } from './addresses/addresses.module';
 

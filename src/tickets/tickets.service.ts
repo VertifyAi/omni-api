@@ -1,10 +1,10 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { TicketMessagesService } from 'src/ticket-messages/ticket-messages.service';
+import { TicketMessagesService } from 'src/ticket_messages/ticket_messages.service';
 import { Repository } from 'typeorm';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
 import { PhonesService } from 'src/phones/phones.service';
-import { SenderEnum } from 'src/ticket-messages/entities/ticket-message.entity';
+import { SenderEnum } from 'src/ticket_messages/entities/ticket-message.entity';
 
 @Injectable()
 export class TicketsService {
