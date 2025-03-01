@@ -4,7 +4,7 @@ import { HandleWebhookDto } from './dto/handle-webhook.dto';
 import { Repository } from 'typeorm';
 import { Twilio } from 'twilio';
 import { InjectRepository } from '@nestjs/typeorm';
-import { SenderEnum, TicketMessage } from './entities/ticket-message.entity';
+import { SenderEnum, TicketMessage } from './entities/ticket_message.entity';
 import { PhonesService } from 'src/phones/phones.service';
 import { SendMessageDto } from './dto/send-message.dto';
 @Injectable()

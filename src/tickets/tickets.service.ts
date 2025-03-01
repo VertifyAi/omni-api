@@ -4,7 +4,7 @@ import { TicketMessagesService } from 'src/ticket_messages/ticket_messages.servi
 import { Repository } from 'typeorm';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
 import { PhonesService } from 'src/phones/phones.service';
-import { SenderEnum } from 'src/ticket_messages/entities/ticket-message.entity';
+import { SenderEnum } from 'src/ticket_messages/entities/ticket_message.entity';
 
 @Injectable()
 export class TicketsService {
