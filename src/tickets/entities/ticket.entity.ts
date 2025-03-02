@@ -1,7 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 export enum TicketStatus {
-  NEW = 'new',
   OPEN = 'open',
   IN_PROGRESS = 'in_progress',
   CLOSED = 'closed',

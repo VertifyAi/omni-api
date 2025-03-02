@@ -7,9 +7,12 @@ import { TicketsModule } from './tickets/tickets.module';
 import { TicketMessagesModule } from './ticket_messages/ticket_messages.module';
 import { PhonesModule } from './phones/phones.module';
 import { AddressesModule } from './addresses/addresses.module';
+import { AuthModule } from './auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: process.env.DB_HOST || 'localhost',
@@ -27,6 +30,7 @@ import { AddressesModule } from './addresses/addresses.module';
     TicketMessagesModule,
     PhonesModule,
     AddressesModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
