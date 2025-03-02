@@ -1,12 +1,12 @@
  
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class SendMessageDto {
+export class SignInDto {
   @IsNotEmpty()
   @IsString()
-  Body: string;
+  email: string;
 
   @IsNotEmpty()
   @IsString()
-  From: string;
+  password: string;
 }
