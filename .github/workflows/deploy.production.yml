@@ -1,59 +1,47 @@
-name: Deploy to EC2
+name: Node CI
 
-on:
-  push:
-    branches: [ main ]
+on: [push]
 
 jobs:
-  deploy:
+  build-and-deploy:
+
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v2
-    
-    - name: Deploy to EC2
-      env:
-        PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
-        HOST: ${{ secrets.EC2_HOST }}
-        USER: ${{ secrets.EC2_USER }}
-      run: |
-        echo "$PRIVATE_KEY" > github-ec2.pem && chmod 600 github-ec2.pem
-        ssh -o StrictHostKeyChecking=no -i github-ec2.pem ${USER}@${HOST} '
-        echo "Current directory: $(pwd)"
-        echo "Listing home directory:"
-        ls -la ~
+    - uses: actions/checkout@v3
 
-        echo "Installing Node.js..."
-        if ! command -v nvm &> /dev/null; then
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-        fi
-        nvm install node
+    - name: Deploy to Server
+      uses: easingthemes/ssh-deploy@main
+      with:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+          ARGS: "-rlgoDzvc -i --delete"
+          SOURCE: "simple-web-server/"
+          REMOTE_HOST: ${{ secrets.EC2_HOST }}
+          REMOTE_USER: ${{ secrets.EC2_USER }}
+          TARGET: ${{ secrets.REMOTE_TARGET }}
+          EXCLUDE: "/dist/, /node_modules/"
+          SCRIPT_BEFORE: |
+            whoami
+            ls -al
+            mkdir -p ${{ secrets.REMOTE_TARGET }}
+          SCRIPT_AFTER: |
+            cd ${{ secrets.REMOTE_TARGET }}
+            ls -al
 
-        echo "Installing PM2..."
-        if ! command -v pm2 &> /dev/null; then
-        npm install -g pm2
-        fi
+            echo "Installing Node.js..."
+            if ! command -v nvm &> /dev/null; then
+              curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+            fi
+            nvm install node
 
-        REPO_URL="https://github.com/afkzoro/github-aws-ec2.git"
-        BRANCH="main"
-        REPO_DIR="$HOME/github-aws-ec2"
+            echo "Installing PM2..."
+            if ! command -v pm2 &> /dev/null; then
+            npm install -g pm2
+            fi
 
-        if [ -d "$REPO_DIR/.git" ]; then
-          cd "$REPO_DIR"
-          git pull origin "$BRANCH"
-        else
-          git clone "$REPO_URL" "$REPO_DIR"
-          cd "$REPO_DIR"
-        fi
+            npm install
 
-        cd "$REPO_DIR/simple-web-server"
-        npm install
-
-        cd ~/github-aws-ec2/simple-web-server
-        git pull origin main
-        npm install
-
-        echo "Starting/restarting application..."
-        pm2 restart server.js || pm2 start server.js
-        '
+            echo "Starting/restarting application..."
+            pm2 restart server.js || pm2 start server.js
