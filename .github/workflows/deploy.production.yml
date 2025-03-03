@@ -1,53 +1,22 @@
-name: Deploy to production
-
-on:
-  push:
-    branches:
-      - main
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ssh-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
 
-      - name: Install dependencies and build
+      - name: Configure SSH
         run: |
-          npm ci
-          npm run build
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.1
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd ~/omni-api
-            # Cria/atualiza o arquivo .env
-            echo "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" > .env
-            echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" >> .env
-            echo "TWILIO_WHATSAPP_NUMBER=$TWILIO_WHATSAPP_NUMBER" >> .env
-            echo "DB_HOST=$DB_HOST" >> .env
-            echo "DB_USERNAME=$DB_USERNAME" >> .env
-            echo "DB_PASSWORD=$DB_PASSWORD" >> .env
-            echo "DB_DATABASE=$DB_DATABASE" >> .env
-            echo "DB_PORT=$DB_PORT" >> .env
-            echo "JWT_SECRET=$JWT_SECRET" >> .env
-            # Atualiza o código e reinicia a aplicação
-            git pull origin main
-            npm ci --production
-            pm2 restart all
-        env:  # Injeta as variáveis do GitHub Secrets
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_WHATSAPP_NUMBER: ${{ secrets.TWILIO_WHATSAPP_NUMBER }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_DATABASE: ${{ secrets.DB_DATABASE }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      - name: Deploy API
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          cd ~/omni-api
+          git pull origin main
+          npm ci --production
+          pm2 restart all
+          EOF
