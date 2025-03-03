@@ -1,47 +1,38 @@
-name: Node CI
+name: Deploy to EC2
 
-on: [push]
+on:
+  push:
+    branches: [main]
 
 jobs:
-  build-and-deploy:
-
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Deploy to Server
-      uses: easingthemes/ssh-deploy@main
-      with:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy via SSH
+        uses: easingthemes/ssh-deploy@v4.3.3
+        with:
           SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
-          ARGS: "-rlgoDzvc -i --delete"
-          SOURCE: "simple-web-server/"
+          SOURCE: "./"
           REMOTE_HOST: ${{ secrets.EC2_HOST }}
           REMOTE_USER: ${{ secrets.EC2_USER }}
-          TARGET: ${{ secrets.REMOTE_TARGET }}
-          EXCLUDE: "/dist/, /node_modules/"
-          SCRIPT_BEFORE: |
-            whoami
-            ls -al
-            mkdir -p ${{ secrets.REMOTE_TARGET }}
+          TARGET: "/home/ubuntu/omni-api"
+          EXCLUDE: "node_modules, .git, .github, Dockerfile"
           SCRIPT_AFTER: |
-            cd ${{ secrets.REMOTE_TARGET }}
-            ls -al
-
-            echo "Installing Node.js..."
-            if ! command -v nvm &> /dev/null; then
-              curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-              export NVM_DIR="$HOME/.nvm"
-              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-            fi
-            nvm install node
-
-            echo "Installing PM2..."
-            if ! command -v pm2 &> /dev/null; then
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            nvm install 18
+            nvm use 18
             npm install -g pm2
-            fi
-
-            npm install
-
-            echo "Starting/restarting application..."
-            pm2 restart server.js || pm2 start server.js
+            npm ci --production
+            pm2 restart ecosystem.config.js || pm2 start ecosystem.config.js
