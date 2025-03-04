@@ -15,9 +15,6 @@ export class PhonesService {
       const number = phoneNumber.substring(5);
       const stateCode = phoneNumber.substring(3, 5);
       const countryCode = phoneNumber.substring(0, 3);
-      console.log('number:', number);
-      console.log('stateCode:', stateCode);
-      console.log('countryCode:', countryCode);
       return await this.phoneRepository.findOneBy({
         number,
         stateCode,
