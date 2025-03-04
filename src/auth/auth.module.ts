@@ -19,7 +19,7 @@ import { Address } from 'src/addresses/entities/address.entity';
     JwtModule.register({
       global: true,
       secret: 'secret',
-      signOptions: { expiresIn: '60s' },
+      signOptions: { expiresIn: '4h' },
     }),
     UsersModule,
     PhonesModule,
