@@ -6,18 +6,26 @@ import { JwtModule } from '@nestjs/jwt';
 import { UsersService } from 'src/users/users.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
+import { PhonesService } from 'src/phones/phones.service';
+import { Phone } from 'src/phones/entities/phone.entity';
+import { PhonesModule } from 'src/phones/phones.module';
+import { AddressesModule } from 'src/addresses/addresses.module';
+import { AddressesService } from 'src/addresses/addresses.service';
+import { Address } from 'src/addresses/entities/address.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Phone, Address]),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET,
+      secret: 'secret',
       signOptions: { expiresIn: '60s' },
     }),
     UsersModule,
+    PhonesModule,
+    AddressesModule
   ],
   controllers: [AuthController],
-  providers: [AuthService, UsersService],
+  providers: [AuthService, UsersService, PhonesService, AddressesService],
 })
 export class AuthModule {}

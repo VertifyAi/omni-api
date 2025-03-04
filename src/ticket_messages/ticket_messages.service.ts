@@ -25,7 +25,6 @@ export class TicketMessagesService {
   }
 
   async processIncomingMessage(body: HandleWebhookDto) {
-    console.log(body);
     let ticket = await this.ticketsService.findOpenTicketByPhone(
       body.From.split(':')[1],
     );
