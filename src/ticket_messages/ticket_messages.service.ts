@@ -8,6 +8,7 @@ import { SenderEnum, TicketMessage } from './entities/ticket_message.entity';
 import { PhonesService } from 'src/phones/phones.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { TicketMessagesGateway } from './ticket_messages.gateway';
+
 @Injectable()
 export class TicketMessagesService {
   private twilioClient: Twilio;
@@ -104,13 +105,9 @@ export class TicketMessagesService {
   ) {
     try {
       const ticketMessage = this.ticketMessageRepository.create({
-        costumerPhoneId: phoneNumberId,
-        ticketId: 1, //identificar o ticket correto
-        sender:
-          sender === SenderEnum.CUSTOMER
-            ? SenderEnum.CUSTOMER
-            : SenderEnum.AGENT,
-        message,
+        ticket_id: 1, //identificar o ticket correto
+        sender,
+        message: message,
       });
 
       return await this.ticketMessageRepository.save(ticketMessage);
@@ -118,5 +115,14 @@ export class TicketMessagesService {
       console.error('Error details:', error);
       throw new Error('Error while trying to create message');
     }
+  }
+
+  async create(phoneNumberId: number, content: string): Promise<TicketMessage> {
+    const message = this.ticketMessageRepository.create({
+      ticket_id: 1, //identificar o ticket correto
+      sender: SenderEnum.CUSTOMER,
+      message: content
+    });
+    return this.ticketMessageRepository.save(message);
   }
 }

@@ -1,50 +1,40 @@
 import { Injectable } from '@nestjs/common';
-import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Phone } from './entities/phone.entity';
 
 @Injectable()
 export class PhonesService {
   constructor(
     @InjectRepository(Phone)
-    private readonly phoneRepository: Repository<Phone>,
+    private phoneRepository: Repository<Phone>,
   ) {}
 
   async findOneByPhone(phoneNumber: string): Promise<Phone | null> {
-    try {
-      const number = phoneNumber.substring(5);
-      const stateCode = phoneNumber.substring(3, 5);
-      const countryCode = phoneNumber.substring(0, 3);
-      return await this.phoneRepository.findOneBy({
+    const stateCode = phoneNumber.substring(3, 5);
+    const number = phoneNumber.substring(5);
+    return this.findByNumber(number, stateCode);
+  }
+
+  async findByNumber(number: string, stateCode: string): Promise<Phone | null> {
+    return this.phoneRepository.findOne({
+      where: {
         number,
-        stateCode,
-        countryCode,
-      });
-    } catch {
-      throw new Error('Error while trying to find phone');
-    }
+        state_code: stateCode,
+      },
+    });
   }
 
   async create(phoneNumber: string): Promise<Phone> {
-    try {
-      const countryCode = phoneNumber.substring(0, 3);
-      const numberWithStateCode = phoneNumber.substring(3);
-      const stateCode = numberWithStateCode.substring(0, 2);
-      const number = numberWithStateCode.substring(2);
-
-      const newPhone = this.phoneRepository.create({
-        stateCode,
-        number,
-        countryCode,
-      });
-
-      const savedPhone = await this.phoneRepository.save(newPhone);
-
-      return savedPhone;
-    } catch (error) {
-      console.error('Error details:', error);
-      throw new Error('Error while trying to create phone');
-    }
+    const stateCode = phoneNumber.substring(3, 5);
+    const number = phoneNumber.substring(5);
+    const countryCode = phoneNumber.substring(0, 3);
+    
+    const phone = this.phoneRepository.create({
+      number,
+      state_code: stateCode,
+      country_code: countryCode,
+    });
+    return this.phoneRepository.save(phone);
   }
-  ƒ;
 }

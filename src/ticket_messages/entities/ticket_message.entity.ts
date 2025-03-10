@@ -13,7 +13,7 @@ export class TicketMessage {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ name: 'ticket_id' })
   ticket_id: number;
 
   @Column({
@@ -25,7 +25,7 @@ export class TicketMessage {
   @Column('text')
   message: string;
 
-  @ManyToOne(() => Ticket, ticket => ticket.messages)
+  @ManyToOne('Ticket', 'messages')
   @JoinColumn({ name: 'ticket_id' })
   ticket: Ticket;
 

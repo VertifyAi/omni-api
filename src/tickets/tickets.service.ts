@@ -5,6 +5,8 @@ import { Repository } from 'typeorm';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
 import { PhonesService } from 'src/phones/phones.service';
 import { SenderEnum, TicketMessage } from 'src/ticket_messages/entities/ticket_message.entity';
+import { Phone } from '../phones/entities/phone.entity';
+import { TicketStatus as TicketStatusEnum } from './ticket-status.enum';
 
 @Injectable()
 export class TicketsService {
@@ -18,43 +20,43 @@ export class TicketsService {
     private readonly ticketMessagesService: TicketMessagesService
   ) {}
 
-  async findOpenTicketByPhone(phoneNumber: string): Promise<Ticket | null> {
-    const phone = await this.phoneService.findOneByPhone(phoneNumber);
+  async findByPhone(phone: Phone): Promise<Ticket | null> {
     return this.ticketRepository.findOne({
-      where: { customerPhoneId: phone?.id, status: TicketStatus.OPEN },
+      where: { 
+        customer_phone_id: phone.id,
+        status: TicketStatus.OPEN 
+      },
     });
   }
 
-  async createTicket(
-    phoneNumber: string,
-    initialMessage: string,
-  ): Promise<Ticket> {
-    let phone = await this.phoneService.findOneByPhone(phoneNumber);
-
-    if (!phone) {
-      phone = await this.phoneService.create(phoneNumber);
-    }
-
-    const newTicket = this.ticketRepository.create({
-      customerPhoneId: phone.id,
+  async create(phone: Phone, subject: string): Promise<Ticket> {
+    const ticket = this.ticketRepository.create({
+      subject,
+      customer_phone_id: phone.id,
       status: TicketStatus.OPEN,
-      subject: initialMessage,
-      areaId: 1, //identificar a área correta
-      companyId: 1, //identificar a empresa correta
     });
-    const ticket = await this.ticketRepository.save(newTicket);
-    await this.ticketMessagesService.createMessage(
-      phone.id,
-      SenderEnum.CUSTOMER,
-      initialMessage,
-    );
-    return ticket;
+    return this.ticketRepository.save(ticket);
+  }
+
+  async findById(ticketId: number, companyId: number): Promise<Ticket | null> {
+    return this.ticketRepository.findOne({
+      where: { 
+        id: ticketId,
+        company_id: companyId 
+      },
+    });
+  }
+
+  async findMessages(ticketId: number): Promise<TicketMessage[]> {
+    return this.ticketMessageRepository.find({
+      where: { ticket_id: ticketId },
+    });
   }
 
   async getTicketMessages(ticketId: number, companyId: number) {
     // Primeiro verifica se o ticket pertence à empresa
     const ticket = await this.ticketRepository.findOne({
-      where: { id: ticketId, companyId }
+      where: { id: ticketId, company_id: companyId }
     });
 
     if (!ticket) {
@@ -62,7 +64,7 @@ export class TicketsService {
     }
 
     const messages = await this.ticketMessageRepository.find({
-      where: { ticketId },
+      where: { ticket_id: ticketId },
       order: { id: 'ASC' },
     });
 
@@ -71,5 +73,19 @@ export class TicketsService {
     }
 
     return messages;
+  }
+
+  async findOpenTicketByPhone(phoneNumber: string): Promise<Ticket | null> {
+    const phone = await this.phoneService.findOneByPhone(phoneNumber);
+    if (!phone) return null;
+    return this.findByPhone(phone);
+  }
+
+  async createTicket(phoneNumber: string, subject: string): Promise<Ticket> {
+    const phone = await this.phoneService.findOneByPhone(phoneNumber);
+    if (!phone) {
+      throw new Error('Phone not found');
+    }
+    return this.create(phone, subject);
   }
 }

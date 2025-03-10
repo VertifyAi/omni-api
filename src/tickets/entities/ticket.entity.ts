@@ -27,31 +27,31 @@ export class Ticket {
   @Column()
   subject: string;
 
-  @Column()
+  @Column({ name: 'customer_phone_id' })
   customer_phone_id: number;
 
-  @Column()
+  @Column({ name: 'area_id' })
   area_id: number;
 
-  @Column()
+  @Column({ name: 'company_id' })
   company_id: number;
 
-  @Column({ nullable: true })
+  @Column({ name: 'user_id', nullable: true })
   user_id: number;
 
-  @ManyToOne(() => Area, area => area.tickets)
+  @ManyToOne('Area', 'tickets')
   @JoinColumn({ name: 'area_id' })
   area: Area;
 
-  @ManyToOne(() => Company)
+  @ManyToOne('Company', 'tickets')
   @JoinColumn({ name: 'company_id' })
   company: Company;
 
-  @ManyToOne(() => User)
+  @ManyToOne('User', 'tickets')
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @OneToMany(() => TicketMessage, message => message.ticket)
+  @OneToMany('TicketMessage', 'ticket')
   messages: TicketMessage[];
 
   @CreateDateColumn()
