@@ -1,53 +1,70 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
-import { SignUpDto } from 'src/auth/dto/sign-up.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { PhonesService } from 'src/phones/phones.service';
 import { AddressesService } from 'src/addresses/addresses.service';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(User) private readonly ticketRepository: Repository<User>,
+    @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly phonesService: PhonesService,
     private readonly addressesService: AddressesService,
   ) {}
 
   async findOne(email: string): Promise<User | null> {
-    return this.ticketRepository.findOne({ where: { email } });
+    return this.userRepository.findOne({ where: { email } });
   }
 
-  async create(signUpDto: SignUpDto): Promise<User> {
+  async create(createUserDto: CreateUserDto): Promise<User> {
     try {
-      let phone = await this.phonesService.findOneByPhone(signUpDto.phone);
+      // Verifica se o usuário já existe
+      const existingUser = await this.findOne(createUserDto.email);
+      if (existingUser) {
+        throw new ConflictException('Email já está em uso');
+      }
 
+      // Cria ou encontra o telefone
+      let phone = await this.phonesService.findOneByPhone(createUserDto.phone);
       if (!phone) {
-        phone = await this.phonesService.create(signUpDto.phone);
-      } else {
-        throw new Error('Phone already exists');
+        phone = await this.phonesService.create(createUserDto.phone);
       }
 
-      let address = await this.addressesService.findOne(signUpDto.address);
-
+      // Cria ou encontra o endereço
+      let address = await this.addressesService.findOne(createUserDto.address);
       if (!address) {
-        address = await this.addressesService.create(signUpDto.address);
-      } else {
-        throw new Error('Address already exists');
+        address = await this.addressesService.create(createUserDto.address);
       }
 
-      const user = new User();
-      user.firstName = signUpDto.firstName;
-      user.lastName = signUpDto.lastName;
-      user.email = signUpDto.email;
-      user.password = signUpDto.password;
-      user.phoneId = phone.id;
-      user.addressId = address.id;
-      user.role = signUpDto.role;
+      // Criptografa a senha
+      const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-      return await this.ticketRepository.save(user);
+      const user = this.userRepository.create({
+        firstName: createUserDto.firstName,
+        lastName: createUserDto.lastName,
+        email: createUserDto.email,
+        password: hashedPassword,
+        phoneId: phone.id,
+        addressId: address.id,
+        areaId: createUserDto.areaId,
+        role: createUserDto.role
+      });
+
+      return await this.userRepository.save(user);
     } catch (error) {
-      throw new Error(error);
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      throw new Error('Erro ao criar usuário: ' + error.message);
     }
+  }
+
+  async validatePassword(email: string, password: string): Promise<boolean> {
+    const user = await this.findOne(email);
+    if (!user) return false;
+    return bcrypt.compare(password, user.password);
   }
 }
