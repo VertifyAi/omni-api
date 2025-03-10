@@ -41,8 +41,7 @@ export class CompaniesService {
       const company = this.companyRepository.create({
         name: createCompanyDto.name,
         cnpj: createCompanyDto.cnpj,
-        phone_id: phone.id,
-        address_id: address.id
+        phones: [phone],
       });
 
       return await this.companyRepository.save(company);

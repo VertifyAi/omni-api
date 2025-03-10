@@ -1,11 +1,9 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToMany, ManyToMany, JoinTable, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinColumn } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinTable } from 'typeorm';
 import { Phone } from '../../phones/entities/phone.entity';
-import { Area } from '../../areas/entities/area.entity';
+import { User } from '../../users/entities/user.entity';
+import { Ticket } from '../../tickets/entities/ticket.entity';
 
-@Entity({
-  name: 'companies',
-})
+@Entity('companies')
 export class Company {
   @PrimaryGeneratedColumn()
   id: number;
@@ -13,41 +11,29 @@ export class Company {
   @Column()
   name: string;
 
-  @Column()
+  @Column({ unique: true })
   cnpj: string;
 
-  @Column()
-  phone_id: number;
-
-  @Column()
-  address_id: number;
-
   @OneToMany(() => Phone, phone => phone.company)
-  whatsappNumbers: Phone[];
+  phones: Phone[];
 
-  @OneToMany(() => Area, area => area.company)
-  areas: Area[];
-
-  @ManyToMany(() => User)
+  @ManyToMany(() => User, user => user.companies)
   @JoinTable({
     name: 'company_users',
-    joinColumn: {
-      name: 'company_id',
-      referencedColumnName: 'id',
-    },
-    inverseJoinColumn: {
-      name: 'user_id',
-      referencedColumnName: 'id',
-    },
+    joinColumn: { name: 'company_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' }
   })
   users: User[];
 
-  @CreateDateColumn()
-  created_at: Date;
+  @OneToMany(() => Ticket, ticket => ticket.company)
+  tickets: Ticket[];
 
-  @UpdateDateColumn()
-  updated_at: Date;
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 
-  @DeleteDateColumn()
-  deleted_at: Date;
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt: Date;
 } 

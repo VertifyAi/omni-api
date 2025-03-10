@@ -1,7 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
-import { Company } from '../../companies/entities/company.entity';
-import { User } from '../../users/entities/user.entity';
-import { Ticket } from '../../tickets/entities/ticket.entity';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity({
   name: 'areas',
@@ -10,7 +7,7 @@ export class Area {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ name: 'company_id' })
   company_id: number;
 
   @Column()
@@ -18,16 +15,6 @@ export class Area {
 
   @Column('text')
   description: string;
-
-  @ManyToOne(() => Company, company => company.areas)
-  @JoinColumn({ name: 'company_id' })
-  company: Company;
-
-  @OneToMany(() => User, user => user.area)
-  users: User[];
-
-  @OneToMany(() => Ticket, ticket => ticket.area)
-  tickets: Ticket[];
 
   @CreateDateColumn()
   created_at: Date;

@@ -25,7 +25,7 @@ export class AuthService {
       email: user.email, 
       sub: user.id,
       role: user.role,
-      areaId: user.area_id
+      areaId: user.area.id
     };
 
     return {
@@ -39,7 +39,7 @@ export class AuthService {
       email: user.email, 
       sub: user.id,
       role: user.role,
-      areaId: user.area_id
+      areaId: user.area.id
     };
     return {
       access_token: await this.jwtService.signAsync(payload),

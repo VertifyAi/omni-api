@@ -1,24 +1,17 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinColumn, OneToMany } from 'typeorm';
+import { Phone } from '../../phones/entities/phone.entity';
 import { Area } from '../../areas/entities/area.entity';
+import { Company } from '../../companies/entities/company.entity';
+import { UserRole } from '../user-role.enum';
+import { Ticket } from '../../tickets/entities/ticket.entity';
 
-export enum UserRole {
-  ADMIN = 'admin',
-  ATTENDANT = 'attendant',
-  SUPERVISOR = 'supervisor',
-}
-
-@Entity({
-  name: 'users',
-})
+@Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
-  first_name: string;
-
-  @Column()
-  last_name: string;
+  name: string;
 
   @Column({ unique: true })
   email: string;
@@ -26,32 +19,39 @@ export class User {
   @Column()
   password: string;
 
-  @Column()
+  @Column({ name: 'area_id', nullable: true })
+  area_id: number;
+
+  @Column({ name: 'phone_id', nullable: true })
   phone_id: number;
 
-  @Column()
-  address_id: number;
+  @ManyToOne('Area', 'users')
+  @JoinColumn({ name: 'area_id' })
+  area: Area;
 
-  @Column()
-  area_id: number;
+  @ManyToOne('Phone', 'users')
+  @JoinColumn({ name: 'phone_id' })
+  phone: Phone;
+
+  @ManyToMany('Company', 'users')
+  companies: Company[];
+
+  @OneToMany('Ticket', 'user')
+  tickets: Ticket[];
 
   @Column({
     type: 'enum',
     enum: UserRole,
-    default: UserRole.ATTENDANT
+    default: UserRole.USER
   })
   role: UserRole;
 
-  @ManyToOne(() => Area, area => area.users)
-  @JoinColumn({ name: 'area_id' })
-  area: Area;
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 
-  @CreateDateColumn()
-  created_at: Date;
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
 
-  @UpdateDateColumn()
-  updated_at: Date;
-
-  @DeleteDateColumn()
-  deleted_at: Date;
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt: Date;
 }

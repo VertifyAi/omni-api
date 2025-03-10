@@ -6,6 +6,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { PhonesService } from 'src/phones/phones.service';
 import { AddressesService } from 'src/addresses/addresses.service';
 import * as bcrypt from 'bcrypt';
+import { DeepPartial } from 'typeorm';
 
 @Injectable()
 export class UsersService {
@@ -28,7 +29,10 @@ export class UsersService {
       }
 
       // Cria ou encontra o telefone
-      let phone = await this.phonesService.findOneByPhone(createUserDto.phone);
+      const phoneNumber = createUserDto.phone;
+      const stateCode = phoneNumber.substring(3, 5);
+      const number = phoneNumber.substring(5);
+      let phone = await this.phonesService.findByNumber(number, stateCode);
       if (!phone) {
         phone = await this.phonesService.create(createUserDto.phone);
       }
@@ -41,17 +45,15 @@ export class UsersService {
 
       // Criptografa a senha
       const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-
       const user = this.userRepository.create({
-        firstName: createUserDto.firstName,
-        lastName: createUserDto.lastName,
+        name: createUserDto.firstName + ' ' + createUserDto.lastName,
         email: createUserDto.email,
         password: hashedPassword,
-        phoneId: phone.id,
-        addressId: address.id,
-        areaId: createUserDto.areaId,
+        phone: phone,
+        address: address,
+        area: { id: createUserDto.areaId },
         role: createUserDto.role
-      });
+      } as DeepPartial<User>);
 
       return await this.userRepository.save(user);
     } catch (error) {

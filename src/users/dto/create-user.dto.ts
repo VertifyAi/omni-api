@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsString, IsEmail, IsEnum } from 'class-validator';
 import { Address } from 'src/addresses/entities/address.entity';
-import { UserRole } from '../entities/user.entity';
+import { UserRole } from '../user-role.enum';
 
 export class CreateUserDto {
   @IsNotEmpty()
