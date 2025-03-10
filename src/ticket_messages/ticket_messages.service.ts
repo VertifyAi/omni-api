@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { SenderEnum, TicketMessage } from './entities/ticket_message.entity';
 import { PhonesService } from 'src/phones/phones.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { TicketMessagesGateway } from './ticket_messages.gateway';
 @Injectable()
 export class TicketMessagesService {
   private twilioClient: Twilio;
@@ -17,6 +18,7 @@ export class TicketMessagesService {
     @Inject(forwardRef(() => TicketsService))
     private readonly ticketsService: TicketsService,
     private readonly phonesService: PhonesService,
+    private readonly ticketMessagesGateway: TicketMessagesGateway,
   ) {
     this.twilioClient = new Twilio(
       process.env.TWILIO_ACCOUNT_SID,
@@ -44,6 +46,13 @@ export class TicketMessagesService {
       }
 
       await this.createMessage(phone.id, SenderEnum.CUSTOMER, body.Body);
+
+      this.ticketMessagesGateway.notifyNewMessage({
+        ticketId: ticket.id,
+        message: body.Body,
+        sender: SenderEnum.CUSTOMER,
+        createdAt: new Date()
+      });
     }
 
     // const responseMessage = `Recebemos sua mensagem. Seu ticket está em análise.`;

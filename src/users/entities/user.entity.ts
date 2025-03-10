@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Area } from '../../areas/entities/area.entity';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -14,26 +15,43 @@ export class User {
   id: number;
 
   @Column()
-  firstName: string;
+  first_name: string;
 
   @Column()
-  lastName: string;
+  last_name: string;
 
-  @Column()
+  @Column({ unique: true })
   email: string;
 
   @Column()
   password: string;
 
   @Column()
-  phoneId: number;
+  phone_id: number;
 
   @Column()
-  addressId: number;
+  address_id: number;
 
   @Column()
-  areaId: number;
+  area_id: number;
 
-  @Column()
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.ATTENDANT
+  })
   role: UserRole;
+
+  @ManyToOne(() => Area, area => area.users)
+  @JoinColumn({ name: 'area_id' })
+  area: Area;
+
+  @CreateDateColumn()
+  created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
+
+  @DeleteDateColumn()
+  deleted_at: Date;
 }

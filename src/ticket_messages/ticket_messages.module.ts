@@ -5,7 +5,7 @@ import { TicketMessagesService } from './ticket_messages.service';
 import { TicketsModule } from 'src/tickets/tickets.module';
 import { PhonesModule } from 'src/phones/phones.module';
 import { TicketMessage } from './entities/ticket_message.entity';
-
+import { TicketMessagesGateway } from './ticket_messages.gateway';
 @Module({
   imports: [
     TypeOrmModule.forFeature([TicketMessage]),
@@ -13,7 +13,7 @@ import { TicketMessage } from './entities/ticket_message.entity';
     forwardRef(() => PhonesModule),
   ],
   controllers: [TicketMessagesController],
-  providers: [TicketMessagesService],
+  providers: [TicketMessagesService, TicketMessagesGateway],
   exports: [TicketMessagesService],
 })
 export class TicketMessagesModule {}

@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Ticket } from '../../tickets/entities/ticket.entity';
 
 export enum SenderEnum {
   CUSTOMER = 'customer',
@@ -6,21 +7,28 @@ export enum SenderEnum {
 }
 
 @Entity({
-  name: 'ticket_messsages',
+  name: 'ticket_messages',
 })
 export class TicketMessage {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
-  ticketId: number;
+  ticket_id: number;
 
-  @Column()
-  costumerPhoneId: number;
-
-  @Column()
+  @Column({
+    type: 'enum',
+    enum: SenderEnum
+  })
   sender: SenderEnum;
 
-  @Column()
+  @Column('text')
   message: string;
+
+  @ManyToOne(() => Ticket, ticket => ticket.messages)
+  @JoinColumn({ name: 'ticket_id' })
+  ticket: Ticket;
+
+  @CreateDateColumn()
+  created_at: Date;
 }

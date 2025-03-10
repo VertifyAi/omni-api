@@ -18,7 +18,7 @@ import { Address } from 'src/addresses/entities/address.entity';
     TypeOrmModule.forFeature([User, Phone, Address]),
     JwtModule.register({
       global: true,
-      secret: 'secret',
+      secret: '6312659c690ce39a9f1b7819858bef8deedd7965c3a5822e845f0720c8c81dac',
       signOptions: { expiresIn: '4h' },
     }),
     UsersModule,
