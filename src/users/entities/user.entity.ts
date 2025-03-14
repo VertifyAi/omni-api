@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinColumn, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Phone } from '../../phones/entities/phone.entity';
+import { Address } from '../../addresses/entities/address.entity';
 import { Area } from '../../areas/entities/area.entity';
 import { Company } from '../../companies/entities/company.entity';
 import { UserRole } from '../user-role.enum';
@@ -19,25 +20,21 @@ export class User {
   @Column()
   password: string;
 
-  @Column({ name: 'area_id', nullable: true })
-  area_id: number;
-
-  @Column({ name: 'phone_id', nullable: true })
-  phone_id: number;
-
-  @ManyToOne('Area', 'users')
-  @JoinColumn({ name: 'area_id' })
-  area: Area;
-
-  @ManyToOne('Phone', 'users')
+  @ManyToOne(() => Phone)
   @JoinColumn({ name: 'phone_id' })
   phone: Phone;
 
-  @ManyToMany('Company', 'users')
-  companies: Company[];
+  @ManyToOne(() => Address)
+  @JoinColumn({ name: 'address_id' })
+  address: Address;
 
-  @OneToMany('Ticket', 'user')
-  tickets: Ticket[];
+  @ManyToOne(() => Area)
+  @JoinColumn({ name: 'area_id' })
+  area: Area;
+
+  @ManyToOne(() => Company)
+  @JoinColumn({ name: 'company_id' })
+  company: Company;
 
   @Column({
     type: 'enum',
@@ -45,6 +42,9 @@ export class User {
     default: UserRole.USER
   })
   role: UserRole;
+
+  @OneToMany(() => Ticket, ticket => ticket.user)
+  tickets: Ticket[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

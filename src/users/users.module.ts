@@ -9,10 +9,19 @@ import { Phone } from 'src/phones/entities/phone.entity';
 import { Address } from 'src/addresses/entities/address.entity';
 import { AddressesModule } from 'src/addresses/addresses.module';
 import { AddressesService } from 'src/addresses/addresses.service';
+import { CompaniesModule } from '../companies/companies.module';
+import { AreasModule } from '../areas/areas.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Phone, Address]), PhonesModule, AddressesModule],
+  imports: [
+    TypeOrmModule.forFeature([User, Phone, Address]),
+    PhonesModule,
+    AddressesModule,
+    CompaniesModule,
+    AreasModule
+  ],
   controllers: [UsersController],
-  providers: [UsersService, PhonesService, AddressesService]
+  providers: [UsersService, PhonesService, AddressesService],
+  exports: [UsersService]
 })
 export class UsersModule {}

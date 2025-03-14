@@ -1,0 +1,82 @@
+// Documentação do Banco de Dados Omni
+// Use https://dbdiagram.io para visualizar
+
+Table companies {
+  id int [pk, increment]
+  name varchar [not null]
+  cnpj varchar [unique, not null]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+  deleted_at timestamp [null]
+}
+
+Table addresses {
+  id int [pk, increment]
+  street varchar [not null]
+  number varchar [not null]
+  complement varchar
+  neighborhood varchar [not null]
+  city varchar [not null]
+  state varchar [not null]
+  zip_code varchar [not null]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Table phones {
+  id int [pk, increment]
+  number varchar [not null]
+  company_id int [ref: > companies.id]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Table areas {
+  id int [pk, increment]
+  name varchar [not null]
+  company_id int [ref: > companies.id]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Table users {
+  id int [pk, increment]
+  name varchar [not null]
+  email varchar [unique, not null]
+  password varchar [not null]
+  role varchar [not null, default: 'admin']
+  phone_id int [ref: > phones.id]
+  address_id int [ref: > addresses.id]
+  area_id int [ref: > areas.id]
+  company_id int [ref: > companies.id]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Table tickets {
+  id int [pk, increment]
+  title varchar [not null]
+  description text [not null]
+  status varchar [not null, default: 'open']
+  priority varchar [not null, default: 'low']
+  user_id int [ref: > users.id]
+  area_id int [ref: > areas.id]
+  company_id int [ref: > companies.id]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Table ticket_messages {
+  id int [pk, increment]
+  message text [not null]
+  ticket_id int [ref: > tickets.id]
+  user_id int [ref: > users.id]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+// Relacionamentos
+Ref: users.company_id > companies.id
+Ref: tickets.company_id > companies.id
+Ref: areas.company_id > companies.id
+Ref: phones.company_id > companies.id 

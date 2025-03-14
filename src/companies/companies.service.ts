@@ -1,10 +1,11 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from './entities/company.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { PhonesService } from '../phones/phones.service';
 import { AddressesService } from '../addresses/addresses.service';
+import { AreasService } from '../areas/areas.service';
 
 @Injectable()
 export class CompaniesService {
@@ -13,7 +14,15 @@ export class CompaniesService {
     private readonly companyRepository: Repository<Company>,
     private readonly phonesService: PhonesService,
     private readonly addressesService: AddressesService,
+    private readonly areasService: AreasService,
   ) {}
+
+  async findOne(id: number): Promise<Company | null> {
+    return this.companyRepository.findOne({ 
+      where: { id },
+      relations: ['address', 'phones'] 
+    });
+  }
 
   async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
     try {
@@ -38,15 +47,34 @@ export class CompaniesService {
         address = await this.addressesService.create(createCompanyDto.address);
       }
 
-      const company = this.companyRepository.create({
+      // Cria a empresa com o endereço
+      const company = await this.companyRepository.save({
         name: createCompanyDto.name,
         cnpj: createCompanyDto.cnpj,
         phones: [phone],
+        address: address // Vincula o endereço diretamente
       });
 
-      return await this.companyRepository.save(company);
+      // Cria a área administrativa
+      await this.areasService.create({
+        name: 'Administrativo',
+        description: 'Área administrativa da empresa',
+        company: company
+      });
+
+      // Retorna a empresa com suas relações
+      const savedCompany = await this.companyRepository.findOne({
+        where: { id: company.id },
+        relations: ['address', 'phones']
+      });
+
+      if (!savedCompany) {
+        throw new NotFoundException('Empresa não encontrada após criação');
+      }
+
+      return savedCompany;
     } catch (error) {
-      if (error instanceof ConflictException) {
+      if (error instanceof ConflictException || error instanceof NotFoundException) {
         throw error;
       }
       throw new Error('Erro ao criar empresa: ' + error.message);

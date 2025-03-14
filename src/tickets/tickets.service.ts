@@ -4,9 +4,8 @@ import { TicketMessagesService } from 'src/ticket_messages/ticket_messages.servi
 import { Repository } from 'typeorm';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
 import { PhonesService } from 'src/phones/phones.service';
-import { SenderEnum, TicketMessage } from 'src/ticket_messages/entities/ticket_message.entity';
+import { TicketMessage } from 'src/ticket_messages/entities/ticket_message.entity';
 import { Phone } from '../phones/entities/phone.entity';
-import { TicketStatus as TicketStatusEnum } from './ticket-status.enum';
 
 @Injectable()
 export class TicketsService {
@@ -82,10 +81,13 @@ export class TicketsService {
   }
 
   async createTicket(phoneNumber: string, subject: string): Promise<Ticket> {
-    const phone = await this.phoneService.findOneByPhone(phoneNumber);
+    let phone = await this.phoneService.findOneByPhone(phoneNumber);
+    
+    // Se o telefone não existir, cria um novo
     if (!phone) {
-      throw new Error('Phone not found');
+      phone = await this.phoneService.create(phoneNumber);
     }
+
     return this.create(phone, subject);
   }
 }

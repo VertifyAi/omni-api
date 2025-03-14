@@ -12,6 +12,8 @@ import { PhonesModule } from 'src/phones/phones.module';
 import { AddressesModule } from 'src/addresses/addresses.module';
 import { AddressesService } from 'src/addresses/addresses.service';
 import { Address } from 'src/addresses/entities/address.entity';
+import { CompaniesModule } from 'src/companies/companies.module';
+import { AreasModule } from 'src/areas/areas.module';
 
 @Module({
   imports: [
@@ -23,7 +25,9 @@ import { Address } from 'src/addresses/entities/address.entity';
     }),
     UsersModule,
     PhonesModule,
-    AddressesModule
+    AddressesModule,
+    CompaniesModule,
+    AreasModule
   ],
   controllers: [AuthController],
   providers: [AuthService, UsersService, PhonesService, AddressesService],

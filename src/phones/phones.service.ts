@@ -10,9 +10,19 @@ export class PhonesService {
     private phoneRepository: Repository<Phone>,
   ) {}
 
+  private formatPhoneNumber(phoneNumber: string): { stateCode: string; number: string } {
+    // Remove todos os caracteres não numéricos
+    const cleanNumber = phoneNumber.replace(/\D/g, '');
+    
+    // Extrai o código de área (DDD) e o número
+    const stateCode = cleanNumber.substring(0, 2);
+    const number = cleanNumber.substring(2);
+
+    return { stateCode, number };
+  }
+
   async findOneByPhone(phoneNumber: string): Promise<Phone | null> {
-    const stateCode = phoneNumber.substring(3, 5);
-    const number = phoneNumber.substring(5);
+    const { stateCode, number } = this.formatPhoneNumber(phoneNumber);
     return this.findByNumber(number, stateCode);
   }
 
@@ -26,14 +36,12 @@ export class PhonesService {
   }
 
   async create(phoneNumber: string): Promise<Phone> {
-    const stateCode = phoneNumber.substring(3, 5);
-    const number = phoneNumber.substring(5);
-    const countryCode = phoneNumber.substring(0, 3);
+    const { stateCode, number } = this.formatPhoneNumber(phoneNumber);
     
     const phone = this.phoneRepository.create({
       number,
       state_code: stateCode,
-      country_code: countryCode,
+      country_code: '+55', // Código do Brasil
     });
     return this.phoneRepository.save(phone);
   }
