@@ -1,24 +1,38 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Company } from '../../companies/entities/company.entity';
+import { User } from '../../users/entities/user.entity';
+import { Ticket } from '../../tickets/entities/ticket.entity';
 
-@Entity({
-  name: 'areas',
-})
+@Entity('areas')
 export class Area {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'company_id' })
-  company_id: number;
-
   @Column()
   name: string;
 
-  @Column('text')
+  @Column()
   description: string;
 
-  @CreateDateColumn()
-  created_at: Date;
+  @ManyToOne(() => Company, company => company.areas)
+  @JoinColumn({ name: 'company_id' })
+  company: Company;
 
-  @UpdateDateColumn()
-  updated_at: Date;
+  @Column({ name: 'company_id' })
+  company_id: number;
+
+  @OneToMany(() => User, user => user.area)
+  users: User[];
+
+  @OneToMany(() => Ticket, ticket => ticket.area)
+  tickets: Ticket[];
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt: Date;
 } 

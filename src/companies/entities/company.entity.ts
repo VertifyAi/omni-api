@@ -1,7 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinTable } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Phone } from '../../phones/entities/phone.entity';
 import { User } from '../../users/entities/user.entity';
 import { Ticket } from '../../tickets/entities/ticket.entity';
+import { Area } from '../../areas/entities/area.entity';
+import { Address } from '../../addresses/entities/address.entity';
 
 @Entity('companies')
 export class Company {
@@ -14,16 +16,18 @@ export class Company {
   @Column({ unique: true })
   cnpj: string;
 
+  @ManyToOne(() => Address)
+  @JoinColumn({ name: 'address_id' })
+  address: Address;
+
   @OneToMany(() => Phone, phone => phone.company)
   phones: Phone[];
 
-  @ManyToMany(() => User, user => user.companies)
-  @JoinTable({
-    name: 'company_users',
-    joinColumn: { name: 'company_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' }
-  })
+  @OneToMany(() => User, user => user.company)
   users: User[];
+
+  @OneToMany(() => Area, area => area.company)
+  areas: Area[];
 
   @OneToMany(() => Ticket, ticket => ticket.company)
   tickets: Ticket[];

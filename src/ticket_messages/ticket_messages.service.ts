@@ -28,25 +28,35 @@ export class TicketMessagesService {
   }
 
   async processIncomingMessage(body: HandleWebhookDto) {
-    let ticket = await this.ticketsService.findOpenTicketByPhone(
-      body.From.split(':')[1],
-    );
+    const phoneNumber = body.From.split(':')[1];
+    let ticket = await this.ticketsService.findOpenTicketByPhone(phoneNumber);
 
     if (!ticket) {
-      ticket = await this.ticketsService.createTicket(
-        body.From.split(':')[1],
-        body.Body,
-      );
-    } else {
-      const phone = await this.phonesService.findOneByPhone(
-        body.From.split(':')[1],
-      );
-
+      // Cria um novo ticket e adiciona a primeira mensagem
+      ticket = await this.ticketsService.createTicket(phoneNumber, body.Body);
+      
+      // Busca o telefone (que já foi criado junto com o ticket se não existia)
+      const phone = await this.phonesService.findOneByPhone(phoneNumber);
+      
       if (!phone) {
-        throw new Error('Phone not found');
+        throw new Error('Phone not found after ticket creation');
       }
 
-      await this.createMessage(phone.id, SenderEnum.CUSTOMER, body.Body);
+      // Cria a mensagem inicial
+      const message = await this.createMessage(ticket.id, SenderEnum.CUSTOMER, body.Body);
+
+      // Notifica sobre a nova mensagem
+      this.ticketMessagesGateway.notifyNewMessage({
+        ticketId: ticket.id,
+        message: body.Body,
+        sender: SenderEnum.CUSTOMER,
+        createdAt: new Date()
+      });
+
+      return message;
+    } else {
+      // Se o ticket já existe, apenas adiciona a nova mensagem
+      const message = await this.createMessage(ticket.id, SenderEnum.CUSTOMER, body.Body);
 
       this.ticketMessagesGateway.notifyNewMessage({
         ticketId: ticket.id,
@@ -54,11 +64,9 @@ export class TicketMessagesService {
         sender: SenderEnum.CUSTOMER,
         createdAt: new Date()
       });
-    }
 
-    // const responseMessage = `Recebemos sua mensagem. Seu ticket está em análise.`;
-    // await this.sendMessage(from, responseMessage);
-    // return responseMessage;
+      return message;
+    }
   }
 
   async sendMessage(body: SendMessageDto) {
@@ -75,11 +83,7 @@ export class TicketMessagesService {
         throw new Error('Phone not found');
       }
 
-      const message = await this.createMessage(
-        phone.id,
-        SenderEnum.AGENT,
-        body.Body,
-      );
+      const message = await this.createMessage(ticket.id, SenderEnum.AGENT, body.Body);
 
       if (!message) {
         throw new Error('Message not created');
@@ -92,6 +96,7 @@ export class TicketMessagesService {
       });
 
       console.log('Message sent:', result);
+      return message;
     } catch (error) {
       console.error('Error details:', error);
       throw new Error('Error while trying to send message');
@@ -99,13 +104,13 @@ export class TicketMessagesService {
   }
 
   async createMessage(
-    phoneNumberId: number,
+    ticketId: number,
     sender: SenderEnum,
     message: string,
   ) {
     try {
       const ticketMessage = this.ticketMessageRepository.create({
-        ticket_id: 1, //identificar o ticket correto
+        ticket_id: ticketId,
         sender,
         message: message,
       });
