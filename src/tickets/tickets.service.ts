@@ -6,6 +6,7 @@ import { Ticket, TicketStatus } from './entities/ticket.entity';
 import { PhonesService } from 'src/phones/phones.service';
 import { TicketMessage } from 'src/ticket_messages/entities/ticket_message.entity';
 import { Phone } from '../phones/entities/phone.entity';
+import { TriageResult } from '../ticket_messages/vera-ai.service';
 
 @Injectable()
 export class TicketsService {
@@ -18,6 +19,16 @@ export class TicketsService {
     @Inject(forwardRef(() => TicketMessagesService))
     private readonly ticketMessagesService: TicketMessagesService
   ) {}
+
+  async findAll(companyId: number): Promise<Ticket[]> {
+    return this.ticketRepository.find({
+      where: { company_id: companyId },
+      relations: ['area', 'user', 'messages'],
+      order: {
+        created_at: 'DESC'
+      }
+    });
+  }
 
   async findByPhone(phone: Phone): Promise<Ticket | null> {
     return this.ticketRepository.findOne({
@@ -89,5 +100,22 @@ export class TicketsService {
     }
 
     return this.create(phone, subject);
+  }
+
+  async updateTicketTriage(ticketId: number, triageResult: TriageResult): Promise<Ticket> {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId }
+    });
+
+    if (!ticket) {
+      throw new Error('Ticket não encontrado');
+    }
+
+    ticket.priority = triageResult.priority;
+    ticket.summary = triageResult.summary;
+    ticket.triaged = true;
+    ticket.area_id = triageResult.suggestedAreaId;
+
+    return this.ticketRepository.save(ticket);
   }
 }

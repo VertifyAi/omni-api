@@ -15,18 +15,19 @@ import { SignUpDto } from './dto/sign-up.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { User } from '../users/entities/user.entity';
 
-@ApiTags('Autenticação')
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
-  @ApiOperation({ summary: 'Realizar login' })
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Realiza o login do usuário' })
   @ApiResponse({ status: 200, description: 'Login realizado com sucesso' })
   @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
-  @HttpCode(HttpStatus.OK)
-  @Post('sign-in')
-  signIn(@Body() signInDto: SignInDto) {
-    return this.authService.signIn(signInDto.email, signInDto.password);
+  async login(@Body() signInDto: SignInDto) {
+    const user = await this.authService.validateUser(signInDto.email, signInDto.password);
+    return this.authService.login(user);
   }
 
   @ApiOperation({ summary: 'Obter perfil do usuário' })

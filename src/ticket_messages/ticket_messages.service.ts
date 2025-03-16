@@ -8,6 +8,7 @@ import { SenderEnum, TicketMessage } from './entities/ticket_message.entity';
 import { PhonesService } from 'src/phones/phones.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { TicketMessagesGateway } from './ticket_messages.gateway';
+import { VeraAIService } from './vera-ai.service';
 
 @Injectable()
 export class TicketMessagesService {
@@ -20,6 +21,7 @@ export class TicketMessagesService {
     private readonly ticketsService: TicketsService,
     private readonly phonesService: PhonesService,
     private readonly ticketMessagesGateway: TicketMessagesGateway,
+    private readonly veraAIService: VeraAIService,
   ) {
     this.twilioClient = new Twilio(
       process.env.TWILIO_ACCOUNT_SID,
@@ -45,6 +47,13 @@ export class TicketMessagesService {
       // Cria a mensagem inicial
       const message = await this.createMessage(ticket.id, SenderEnum.CUSTOMER, body.Body);
 
+      // Se é uma nova conversa, a Vera AI deve responder
+      const aiResponse = await this.veraAIService.generateResponse(body.Body);
+      await this.sendMessage({
+        From: phoneNumber,
+        Body: aiResponse
+      });
+
       // Notifica sobre a nova mensagem
       this.ticketMessagesGateway.notifyNewMessage({
         ticketId: ticket.id,
@@ -53,10 +62,25 @@ export class TicketMessagesService {
         createdAt: new Date()
       });
 
+      // Inicia o processo de triagem
+      const messages = [body.Body];
+      const triageResult = await this.veraAIService.performTriage(messages);
+
+      // Atualiza o ticket com o resultado da triagem
+      await this.ticketsService.updateTicketTriage(ticket.id, triageResult);
+
       return message;
     } else {
       // Se o ticket já existe, apenas adiciona a nova mensagem
       const message = await this.createMessage(ticket.id, SenderEnum.CUSTOMER, body.Body);
+
+      // Se o ticket ainda não foi triado, continua o processo de triagem
+      if (!ticket.triaged) {
+        const messages = await this.ticketsService.findMessages(ticket.id);
+        const messageContents = messages.map(m => m.message);
+        const triageResult = await this.veraAIService.performTriage(messageContents);
+        await this.ticketsService.updateTicketTriage(ticket.id, triageResult);
+      }
 
       this.ticketMessagesGateway.notifyNewMessage({
         ticketId: ticket.id,

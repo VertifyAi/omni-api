@@ -3,6 +3,7 @@ import { TicketsService } from './tickets.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { TicketMessage } from '../ticket_messages/entities/ticket_message.entity';
+import { Ticket } from './entities/ticket.entity';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -10,6 +11,14 @@ import { TicketMessage } from '../ticket_messages/entities/ticket_message.entity
 @ApiBearerAuth()
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
+
+  @ApiOperation({ summary: 'Listar todos os tickets da empresa' })
+  @ApiResponse({ status: 200, description: 'Lista de tickets obtida com sucesso', type: [Ticket] })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @Get()
+  findAll(@Request() req) {
+    return this.ticketsService.findAll(req.user.companyId);
+  }
 
   @ApiOperation({ summary: 'Obter mensagens de um ticket' })
   @ApiResponse({ status: 200, description: 'Mensagens obtidas com sucesso', type: [TicketMessage] })
