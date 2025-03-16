@@ -1,35 +1,47 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
+import { UsersService } from '../users/users.service';
+import * as bcrypt from 'bcrypt';
 import { SignUpDto } from './dto/sign-up.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
-    private jwtService: JwtService,
+    private jwtService: JwtService
   ) {}
 
-  async signIn(email: string, pass: string): Promise<{ access_token: string }> {
-    const user = await this.usersService.findOne(email);
+  async validateUser(email: string, password: string): Promise<any> {
+    const user = await this.usersService.findByEmail(email);
     if (!user) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    const isPasswordValid = await this.usersService.validatePassword(email, pass);
+    const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    const payload = { 
-      email: user.email, 
+    const { password: _, ...result } = user;
+    return result;
+  }
+
+  async login(user: any) {
+    const payload = {
+      email: user.email,
       sub: user.id,
       role: user.role,
-      areaId: user.area.id
+      areaId: user.areaId
     };
 
     return {
-      access_token: await this.jwtService.signAsync(payload),
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        areaId: user.areaId
+      }
     };
   }
 
@@ -39,7 +51,7 @@ export class AuthService {
       email: user.email, 
       sub: user.id,
       role: user.role,
-      areaId: user.area.id
+      areaId: user.area?.id
     };
     return {
       access_token: await this.jwtService.signAsync(payload),

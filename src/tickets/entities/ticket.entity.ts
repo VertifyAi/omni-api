@@ -3,6 +3,7 @@ import { Area } from '../../areas/entities/area.entity';
 import { Company } from '../../companies/entities/company.entity';
 import { User } from '../../users/entities/user.entity';
 import { TicketMessage } from '../../ticket_messages/entities/ticket_message.entity';
+import { TicketPriority } from '../enums/ticket-priority.enum';
 
 export enum TicketStatus {
   OPEN = 'open',
@@ -23,6 +24,19 @@ export class Ticket {
     default: TicketStatus.OPEN
   })
   status: TicketStatus;
+
+  @Column({
+    type: 'enum',
+    enum: TicketPriority,
+    nullable: true
+  })
+  priority: TicketPriority;
+
+  @Column({ nullable: true })
+  summary: string;
+
+  @Column({ default: false })
+  triaged: boolean;
 
   @Column()
   subject: string;

@@ -1,33 +1,30 @@
-import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { PhonesService } from 'src/phones/phones.service';
 import { AddressesService } from 'src/addresses/addresses.service';
 import { CompaniesService } from 'src/companies/companies.service';
 import { AreasService } from 'src/areas/areas.service';
 import * as bcrypt from 'bcrypt';
-import { DeepPartial } from 'typeorm';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(User) private readonly userRepository: Repository<User>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly phonesService: PhonesService,
     private readonly addressesService: AddressesService,
     private readonly companiesService: CompaniesService,
     private readonly areasService: AreasService,
   ) {}
 
-  async findOne(email: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { email } });
-  }
-
   async create(createUserDto: CreateUserDto): Promise<User> {
     try {
       // Verifica se o usuário já existe
-      const existingUser = await this.findOne(createUserDto.email);
+      const existingUser = await this.findByEmail(createUserDto.email);
       if (existingUser) {
         throw new ConflictException('Email já está em uso');
       }
@@ -65,7 +62,7 @@ export class UsersService {
 
       // Criptografa a senha
       const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-      
+
       const user = this.userRepository.create({
         name: createUserDto.firstName + ' ' + createUserDto.lastName,
         email: createUserDto.email,
@@ -75,7 +72,7 @@ export class UsersService {
         area: area,
         company: company,
         role: createUserDto.role
-      } as DeepPartial<User>);
+      });
 
       return await this.userRepository.save(user);
     } catch (error) {
@@ -86,9 +83,63 @@ export class UsersService {
     }
   }
 
-  async validatePassword(email: string, password: string): Promise<boolean> {
-    const user = await this.findOne(email);
-    if (!user) return false;
+  async findAll(): Promise<User[]> {
+    return this.userRepository.find({
+      relations: ['phone', 'address', 'company', 'area']
+    });
+  }
+
+  async findOne(id: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id: parseInt(id) },
+      relations: ['phone', 'address', 'company', 'area']
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Usuário #${id} não encontrado`);
+    }
+
+    return user;
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userRepository.findOne({
+      where: { email },
+      relations: ['phone', 'address', 'company', 'area']
+    });
+  }
+
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.findOne(id);
+
+    // Se estiver atualizando o email, verifica se já existe
+    if (updateUserDto.email && updateUserDto.email !== user.email) {
+      const existingUser = await this.findByEmail(updateUserDto.email);
+      if (existingUser) {
+        throw new ConflictException('Email já está em uso');
+      }
+    }
+
+    // Se estiver atualizando a senha, faz o hash
+    if (updateUserDto.password) {
+      updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
+    }
+
+    // Atualiza o usuário
+    Object.assign(user, updateUserDto);
+    return this.userRepository.save(user);
+  }
+
+  async remove(id: string): Promise<void> {
+    const user = await this.findOne(id);
+    await this.userRepository.remove(user);
+  }
+
+  async validateUser(email: string, password: string): Promise<boolean> {
+    const user = await this.findByEmail(email);
+    if (!user) {
+      return false;
+    }
     return bcrypt.compare(password, user.password);
   }
 }

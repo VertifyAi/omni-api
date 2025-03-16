@@ -11,6 +11,7 @@ import { AddressesModule } from 'src/addresses/addresses.module';
 import { AddressesService } from 'src/addresses/addresses.service';
 import { CompaniesModule } from '../companies/companies.module';
 import { AreasModule } from '../areas/areas.module';
+import { MeController } from './me.controller';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { AreasModule } from '../areas/areas.module';
     CompaniesModule,
     AreasModule
   ],
-  controllers: [UsersController],
+  controllers: [UsersController, MeController],
   providers: [UsersService, PhonesService, AddressesService],
   exports: [UsersService]
 })
