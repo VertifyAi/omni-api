@@ -1,0 +1,312 @@
+DOCUMENTAÇÃO DA API OMNI
+=======================
+
+1. VISÃO GERAL
+-------------
+A API Omni é uma plataforma de atendimento ao cliente que integra múltiplos canais de comunicação, com foco principal em WhatsApp. A plataforma utiliza NestJS como framework backend e oferece funcionalidades de atendimento automatizado e humano.
+
+2. ESTRUTURA DO PROJETO
+----------------------
+/src
+  /auth              - Autenticação e autorização
+  /companies         - Gestão de empresas
+  /integrations      - Integrações com serviços externos
+  /tickets          - Gestão de tickets
+  /ticket_messages  - Gestão de mensagens
+  /users            - Gestão de usuários
+  /twilio           - Integração com Twilio
+  /websocket        - Comunicação em tempo real
+
+3. PRINCIPAIS MÓDULOS
+--------------------
+
+3.1 AUTH MODULE
+--------------
+- Autenticação JWT
+- Login de usuários
+- Proteção de rotas
+- Roles e permissões
+
+3.2 COMPANIES MODULE
+-------------------
+- CRUD de empresas
+- Configurações por empresa
+- Gestão de usuários da empresa
+- Integrações por empresa
+
+3.3 INTEGRATIONS MODULE
+----------------------
+- Gestão de integrações
+- Configurações de WhatsApp
+- Configurações de outros canais
+- Validação de configurações
+
+3.4 TICKETS MODULE
+-----------------
+- CRUD de tickets
+- Status e fluxos de trabalho
+- Triagem automática
+- Associação com usuários
+
+3.5 TICKET MESSAGES MODULE
+------------------------
+- Gestão de mensagens
+- Integração com WhatsApp
+- Processamento automático
+- Notificações em tempo real
+
+3.6 TWILIO MODULE
+----------------
+- Integração com API Twilio
+- Envio de mensagens
+- Recebimento de webhooks
+- Gestão de números
+
+4. FLUXOS PRINCIPAIS
+-------------------
+
+4.1 FLUXO DE ATENDIMENTO
+-----------------------
+1. Cliente envia mensagem via WhatsApp
+2. Sistema recebe webhook do Twilio
+3. Processa mensagem e identifica ticket
+4. Realiza triagem automática
+5. Gera resposta automática
+6. Notifica agentes
+7. Permite resposta humana
+8. Atualiza interface em tempo real
+
+4.2 FLUXO DE TRIAGEM
+-------------------
+1. Recebe mensagem inicial
+2. Analisa conteúdo com Vera AI
+3. Classifica ticket
+4. Atribui prioridade
+5. Sugere categorias
+6. Atualiza status
+
+4.3 FLUXO DE NOTIFICAÇÕES
+------------------------
+1. Nova mensagem recebida
+2. WebSocket notifica clientes
+3. Interface atualiza em tempo real
+4. Agentes são notificados
+
+5. INTEGRAÇÕES
+-------------
+
+5.1 TWILIO
+----------
+- Autenticação via Account SID e Auth Token
+- Envio de mensagens via WhatsApp
+- Recebimento de webhooks
+- Gestão de números de telefone
+- Configurações de WhatsApp
+
+5.2 VERA AI
+----------
+- Processamento de linguagem natural
+- Triagem automática
+- Geração de respostas
+- Análise de sentimento
+- Classificação de tickets
+
+6. SEGURANÇA
+-----------
+- Autenticação JWT
+- Proteção de rotas
+- Validação de dados
+- Sanitização de inputs
+- Rate limiting
+- CORS configurado
+
+7. BANCO DE DADOS
+----------------
+- PostgreSQL
+- TypeORM como ORM
+- Migrations automáticas
+- Relacionamentos entre entidades
+- Índices otimizados
+
+8. WEBSOCKET
+-----------
+- Comunicação em tempo real
+- Notificações de novas mensagens
+- Atualização de status
+- Conexão persistente
+- Reconexão automática
+
+9. CONFIGURAÇÕES
+---------------
+- Variáveis de ambiente
+- Configurações por ambiente
+- Logs estruturados
+- Monitoramento
+- Tratamento de erros
+
+10. ENDPOINTS PRINCIPAIS
+-----------------------
+
+10.1 AUTH
+--------
+POST /auth/login
+POST /auth/register
+GET /auth/profile
+
+10.2 COMPANIES
+-------------
+GET /companies
+POST /companies
+GET /companies/:id
+PUT /companies/:id
+DELETE /companies/:id
+
+10.3 INTEGRATIONS
+----------------
+GET /integrations
+POST /integrations
+GET /integrations/:id
+PUT /integrations/:id
+DELETE /integrations/:id
+
+10.4 TICKETS
+-----------
+GET /tickets
+POST /tickets
+GET /tickets/:id
+PUT /tickets/:id
+DELETE /tickets/:id
+
+10.5 TICKET MESSAGES
+-------------------
+GET /ticket-messages
+POST /ticket-messages
+GET /ticket-messages/:id
+POST /ticket-messages/webhook
+POST /ticket-messages/:id/send
+
+11. DTOs PRINCIPAIS
+------------------
+
+11.1 AUTH
+--------
+- LoginDto
+- RegisterDto
+- JwtPayloadDto
+
+11.2 COMPANIES
+-------------
+- CreateCompanyDto
+- UpdateCompanyDto
+- CompanyResponseDto
+
+11.3 INTEGRATIONS
+----------------
+- CreateIntegrationDto
+- UpdateIntegrationDto
+- IntegrationResponseDto
+
+11.4 TICKETS
+-----------
+- CreateTicketDto
+- UpdateTicketDto
+- TicketResponseDto
+
+11.5 TICKET MESSAGES
+-------------------
+- CreateTicketMessageDto
+- UpdateTicketMessageDto
+- TicketMessageResponseDto
+- TwilioWebhookDto
+
+12. ENTIDADES
+------------
+
+12.1 USER
+--------
+- id: number
+- email: string
+- password: string
+- name: string
+- role: string
+- company_id: number
+- created_at: Date
+- updated_at: Date
+
+12.2 COMPANY
+-----------
+- id: number
+- name: string
+- created_at: Date
+- updated_at: Date
+
+12.3 INTEGRATION
+---------------
+- id: number
+- company_id: number
+- type: string
+- config: object
+- created_at: Date
+- updated_at: Date
+
+12.4 TICKET
+-----------
+- id: number
+- company_id: number
+- customer_phone: string
+- status: string
+- priority: string
+- category: string
+- assigned_to: number
+- created_at: Date
+- updated_at: Date
+
+12.5 TICKET_MESSAGE
+------------------
+- id: number
+- ticket_id: number
+- content: string
+- from_customer: boolean
+- whatsapp_number: string
+- whatsapp_message_id: string
+- created_at: Date
+- updated_at: Date
+
+13. DEPENDÊNCIAS PRINCIPAIS
+-------------------------
+- @nestjs/common
+- @nestjs/typeorm
+- @nestjs/websockets
+- @nestjs/jwt
+- @nestjs/config
+- typeorm
+- pg
+- twilio
+- class-validator
+- class-transformer
+
+14. AMBIENTES
+------------
+- Development
+- Production
+- Testing
+
+15. CONSIDERAÇÕES DE IMPLEMENTAÇÃO
+--------------------------------
+- Código modular e organizado
+- Princípios SOLID
+- Padrões de projeto
+- Tratamento de erros
+- Logs estruturados
+- Testes unitários
+- Documentação clara
+- Performance otimizada
+
+16. PRÓXIMOS PASSOS
+------------------
+- Implementar mais canais
+- Melhorar triagem
+- Adicionar relatórios
+- Otimizar performance
+- Expandir testes
+- Melhorar documentação 

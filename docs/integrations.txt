@@ -1,0 +1,121 @@
+# Módulo de Integrações - Documentação
+
+## Visão Geral
+O módulo de integrações é responsável por gerenciar as conexões com serviços externos, atualmente focado na integração com o Twilio para comunicação via WhatsApp. Este módulo permite que a aplicação envie e receba mensagens através do WhatsApp de forma integrada com o sistema de tickets.
+
+## Estrutura do Módulo
+
+### Entidades
+
+#### TwilioIntegration
+- **Campos:**
+  - id: number (PK)
+  - company_id: number (FK para Company)
+  - account_sid: string (ID da conta Twilio)
+  - auth_token: string (Token de autenticação Twilio)
+  - whatsapp_number: string (Número do WhatsApp)
+  - status: TwilioIntegrationStatus (pending, active, inactive, error)
+  - config: JSON {
+    - webhook_url: string
+    - webhook_method: string
+    - last_error?: string
+    - last_error_date?: Date
+  }
+  - created_at: Date
+  - updated_at: Date
+
+### Serviços
+
+#### TwilioIntegrationService
+- **Métodos:**
+  - create(companyId, createDto): Cria uma nova integração Twilio
+  - findOne(companyId): Busca uma integração específica
+  - findByCompanyId(companyId): Lista todas integrações de uma empresa
+  - findWhatsAppIntegration(companyId): Busca integração WhatsApp de uma empresa
+  - update(companyId, updateDto): Atualiza configurações da integração
+  - remove(companyId): Remove uma integração
+  - validateConnection(companyId): Testa a conexão com o Twilio
+
+#### TwilioService
+- **Métodos:**
+  - createWhatsAppNumber(phoneNumber): Compra e configura um número no Twilio
+  - deleteWhatsAppNumber(twilioNumberSid): Remove um número do Twilio
+  - createSubAccount(phoneNumber): Cria uma subconta no Twilio
+  - configureWebhook(accountSid, authToken, webhookUrl): Configura webhook para mensagens
+  - deleteSubAccount(accountSid): Remove uma subconta
+  - sendMessage(to, body, accountSid?, authToken?): Envia mensagem via WhatsApp
+
+## Fluxo de Integração
+
+1. **Criação da Integração**
+   - Empresa solicita nova integração WhatsApp
+   - Sistema cria subconta no Twilio
+   - Sistema compra número WhatsApp
+   - Sistema configura webhooks
+   - Integração é salva no banco de dados
+
+2. **Recebimento de Mensagens**
+   - Twilio envia webhook com nova mensagem
+   - Sistema identifica integração pelo número
+   - Sistema cria/atualiza ticket
+   - Sistema salva mensagem
+   - Sistema notifica usuários em tempo real
+
+3. **Envio de Mensagens**
+   - Usuário envia mensagem pelo sistema
+   - Sistema identifica integração do ticket
+   - Sistema envia mensagem via Twilio
+   - Sistema salva mensagem
+   - Sistema notifica usuários em tempo real
+
+## Configuração
+
+### Variáveis de Ambiente
+```env
+TWILIO_ACCOUNT_SID=seu_account_sid
+TWILIO_AUTH_TOKEN=seu_auth_token
+TWILIO_WHATSAPP_NUMBER=seu_numero_whatsapp
+API_URL=url_da_sua_api
+```
+
+### Webhook URL
+O webhook deve ser configurado no formato:
+```
+{API_URL}/ticket-messages/webhook
+```
+
+## Tratamento de Erros
+
+1. **Erros de Conexão**
+   - Sistema marca integração como ERROR
+   - Salva mensagem de erro
+   - Registra data/hora do erro
+   - Notifica administrador
+
+2. **Erros de Envio**
+   - Sistema registra erro na mensagem
+   - Permite reenvio posterior
+   - Notifica usuário sobre falha
+
+## Segurança
+
+- Tokens de autenticação são armazenados de forma segura
+- Webhooks utilizam HTTPS
+- Validação de assinatura do Twilio
+- Autenticação por empresa
+- Isolamento de dados entre empresas
+
+## Limitações
+
+- Uma empresa pode ter múltiplas integrações
+- Cada número WhatsApp só pode ser usado em uma integração
+- Mensagens são limitadas conforme plano Twilio
+- Webhooks requerem HTTPS em produção
+
+## Manutenção
+
+- Monitorar status das integrações
+- Verificar saldo Twilio regularmente
+- Manter webhooks atualizados
+- Rotacionar tokens periodicamente
+- Backup regular dos dados de integração 

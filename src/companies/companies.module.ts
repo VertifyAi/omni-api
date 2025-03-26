@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
@@ -12,7 +12,7 @@ import { AreasModule } from '../areas/areas.module';
     TypeOrmModule.forFeature([Company]),
     PhonesModule,
     AddressesModule,
-    AreasModule
+    forwardRef(() => AreasModule)
   ],
   controllers: [CompaniesController],
   providers: [CompaniesService],

@@ -28,11 +28,11 @@ export class Ticket {
   @Column({
     type: 'enum',
     enum: TicketPriority,
-    nullable: true
+    default: TicketPriority.LOW,
   })
   priority: TicketPriority;
 
-  @Column({ nullable: true })
+  @Column('text', { nullable: true })
   summary: string;
 
   @Column({ default: false })

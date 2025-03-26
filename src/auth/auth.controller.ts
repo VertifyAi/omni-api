@@ -9,7 +9,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SignInDto } from './dto/sign-in.dto';
+import { ValidateUserDto } from './dto/validate-user.dto';
 import { AuthGuard } from './auth.guard';
 import { SignUpDto } from './dto/sign-up.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
@@ -25,8 +25,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Realiza o login do usuário' })
   @ApiResponse({ status: 200, description: 'Login realizado com sucesso' })
   @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
-  async login(@Body() signInDto: SignInDto) {
-    const user = await this.authService.validateUser(signInDto.email, signInDto.password);
+  async login(@Body() validateUserDto: ValidateUserDto) {
+    const user = await this.authService.validateUser(validateUserDto);
     return this.authService.login(user);
   }
 

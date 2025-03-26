@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -19,7 +19,7 @@ import { MeController } from './me.controller';
     PhonesModule,
     AddressesModule,
     CompaniesModule,
-    AreasModule
+    forwardRef(() => AreasModule)
   ],
   controllers: [UsersController, MeController],
   providers: [UsersService, PhonesService, AddressesService],

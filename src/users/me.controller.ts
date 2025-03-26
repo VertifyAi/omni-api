@@ -1,8 +1,8 @@
 import { Controller, Get, UseGuards, Request, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
+import { AuthGuard } from 'src/auth/auth.guard';
 
 @ApiTags('Me')
 @Controller('me')
@@ -10,7 +10,7 @@ import { User } from './entities/user.entity';
 export class MeController {
   constructor(private readonly usersService: UsersService) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   @Get()
   @ApiOperation({ summary: 'Retorna os dados do usuário autenticado' })
   @ApiResponse({ status: 200, description: 'Dados do usuário', type: User })
@@ -28,7 +28,6 @@ export class MeController {
       throw new NotFoundException('Usuário não encontrado');
     }
     
-    const { password, ...result } = user;
-    return result;
+    return user;
   }
 } 

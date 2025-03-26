@@ -1,34 +1,43 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Ticket } from '../../tickets/entities/ticket.entity';
 
 export enum SenderEnum {
   CUSTOMER = 'customer',
   AGENT = 'agent',
+  SYSTEM = 'system',
 }
 
-@Entity({
-  name: 'ticket_messages',
-})
+@Entity('ticket_messages')
 export class TicketMessage {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'ticket_id' })
+  @Column()
   ticket_id: number;
+
+  @Column('text')
+  content: string;
 
   @Column({
     type: 'enum',
-    enum: SenderEnum
+    enum: SenderEnum,
+    default: SenderEnum.CUSTOMER,
   })
   sender: SenderEnum;
 
-  @Column('text')
-  message: string;
+  @Column({ nullable: true })
+  whatsapp_number: string;
 
-  @ManyToOne('Ticket', 'messages')
-  @JoinColumn({ name: 'ticket_id' })
-  ticket: Ticket;
+  @Column()
+  whatsapp_message_id: string;
 
   @CreateDateColumn()
   created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
+
+  @ManyToOne(() => Ticket)
+  @JoinColumn({ name: 'ticket_id' })
+  ticket: Ticket;
 }

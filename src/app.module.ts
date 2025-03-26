@@ -8,13 +8,17 @@ import { TicketMessagesModule } from './ticket_messages/ticket_messages.module';
 import { PhonesModule } from './phones/phones.module';
 import { AddressesModule } from './addresses/addresses.module';
 import { AuthModule } from './auth/auth.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { ConfigModule } from '@nestjs/config';
+import { SharedModule } from './shared/shared.module';
+import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    SharedModule,
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: process.env.DB_HOST || 'localhost',
@@ -23,7 +27,8 @@ import { ConfigModule } from '@nestjs/config';
       password: process.env.DB_PASSWORD || 'root',
       database: process.env.DB_DATABASE || 'example',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true,
+      synchronize: false,
+      migrationsRun: true,
     }),
     UsersModule,
     CompaniesModule,
@@ -33,6 +38,8 @@ import { ConfigModule } from '@nestjs/config';
     PhonesModule,
     AddressesModule,
     AuthModule,
+    IntegrationsModule,
+    WebhookModule,
   ],
 })
 export class AppModule {}

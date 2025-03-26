@@ -4,6 +4,7 @@ import { User } from '../../users/entities/user.entity';
 import { Ticket } from '../../tickets/entities/ticket.entity';
 import { Area } from '../../areas/entities/area.entity';
 import { Address } from '../../addresses/entities/address.entity';
+import { Integration } from '../../integrations/entities/integration.entity';
 
 @Entity('companies')
 export class Company {
@@ -13,8 +14,8 @@ export class Company {
   @Column()
   name: string;
 
-  @Column({ unique: true })
-  cnpj: string;
+  @Column({ name: 'tax_id', unique: true })
+  taxId: string;
 
   @ManyToOne(() => Address)
   @JoinColumn({ name: 'address_id' })
@@ -31,6 +32,9 @@ export class Company {
 
   @OneToMany(() => Ticket, ticket => ticket.company)
   tickets: Ticket[];
+
+  @OneToMany(() => Integration, integration => integration.company)
+  integrations: Integration[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

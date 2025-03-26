@@ -9,6 +9,7 @@ import { AddressesService } from 'src/addresses/addresses.service';
 import { CompaniesService } from 'src/companies/companies.service';
 import { AreasService } from 'src/areas/areas.service';
 import * as bcrypt from 'bcrypt';
+import { CreateCompanyUserDto } from './dto/create-company-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -29,6 +30,11 @@ export class UsersService {
         throw new ConflictException('Email já está em uso');
       }
 
+      const user = this.userRepository.create();
+      user.name = createUserDto.firstName + ' ' + createUserDto.lastName;
+      user.email = createUserDto.email;
+      user.password = await bcrypt.hash(createUserDto.password, 10);
+
       // Verifica se as senhas conferem
       if (createUserDto.password !== createUserDto.passwordConfirmation) {
         throw new BadRequestException('As senhas não conferem');
@@ -43,14 +49,20 @@ export class UsersService {
         userPhone = await this.phonesService.create(createUserDto.phone);
       }
 
+      user.phone = userPhone;
+
       // Cria ou encontra o endereço do usuário
       let userAddress = await this.addressesService.findOne(createUserDto.address);
       if (!userAddress) {
         userAddress = await this.addressesService.create(createUserDto.address);
       }
 
+      user.address = userAddress;
+
       // Cria a empresa
-      const company = await this.companiesService.create(createUserDto.company);
+      const company = await this.companiesService.create(createUserDto.company, user.id);
+
+      user.company = company;
       
       // Busca a área administrativa que foi criada automaticamente
       const areas = await this.areasService.findByCompanyId(company.id);
@@ -60,19 +72,12 @@ export class UsersService {
         throw new Error('Área administrativa não encontrada');
       }
 
+      user.area = area;
+
       // Criptografa a senha
       const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-      const user = this.userRepository.create({
-        name: createUserDto.firstName + ' ' + createUserDto.lastName,
-        email: createUserDto.email,
-        password: hashedPassword,
-        phone: userPhone,
-        address: userAddress,
-        area: area,
-        company: company,
-        role: createUserDto.role
-      });
+      user.password = hashedPassword;
 
       return await this.userRepository.save(user);
     } catch (error) {
@@ -85,6 +90,13 @@ export class UsersService {
 
   async findAll(): Promise<User[]> {
     return this.userRepository.find({
+      relations: ['phone', 'address', 'company', 'area']
+    });
+  }
+
+  async findAllByCompany(companyId: number): Promise<User[]> {
+    return this.userRepository.find({
+      where: { company: { id: companyId } },
       relations: ['phone', 'address', 'company', 'area']
     });
   }
@@ -141,5 +153,36 @@ export class UsersService {
       return false;
     }
     return bcrypt.compare(password, user.password);
+  }
+
+  async createCompanyUser(companyId: number, createUserDto: CreateCompanyUserDto): Promise<User> {
+    // Verifica se a empresa existe
+    const company = await this.companiesService.findOne(companyId);
+    if (!company) {
+      throw new NotFoundException('Empresa não encontrada');
+    }
+
+    // Verifica se já existe usuário com este email
+    const existingUser = await this.userRepository.findOne({
+      where: { email: createUserDto.email }
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Email já cadastrado');
+    }
+
+    // Criptografa a senha
+    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+
+    // Cria o usuário
+    const user = this.userRepository.create({
+      name: createUserDto.name,
+      email: createUserDto.email,
+      password: hashedPassword,
+      role: createUserDto.role,
+      company: company
+    });
+
+    return this.userRepository.save(user);
   }
 }

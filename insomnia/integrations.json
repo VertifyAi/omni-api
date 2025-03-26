@@ -1,0 +1,144 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2024-03-19T12:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v8.5.1",
+  "resources": [
+    {
+      "_id": "req_integrations_whatsapp_create",
+      "parentId": "fld_integrations",
+      "modified": 1710849600000,
+      "created": 1710849600000,
+      "name": "Criar Integração WhatsApp",
+      "description": "Cria uma nova integração do WhatsApp para uma empresa",
+      "url": "{{ _.baseUrl }}/integrations/whatsapp",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"phoneNumber\": \"5511999999999\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}",
+          "type": "text"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "_id": "req_integrations_list",
+      "parentId": "fld_integrations",
+      "modified": 1710849600000,
+      "created": 1710849600000,
+      "name": "Listar Integrações",
+      "description": "Lista todas as integrações de uma empresa",
+      "url": "{{ _.baseUrl }}/integrations",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "_id": "req_integrations_whatsapp_get",
+      "parentId": "fld_integrations",
+      "modified": 1710849600000,
+      "created": 1710849600000,
+      "name": "Buscar Integração WhatsApp",
+      "description": "Busca a integração do WhatsApp ativa de uma empresa",
+      "url": "{{ _.baseUrl }}/integrations/whatsapp",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "_id": "req_integrations_update",
+      "parentId": "fld_integrations",
+      "modified": 1710849600000,
+      "created": 1710849600000,
+      "name": "Atualizar Integração",
+      "description": "Atualiza uma integração existente",
+      "url": "{{ _.baseUrl }}/integrations/{{ _.integrationId }}",
+      "method": "PUT",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"phoneNumber\": \"5511999999999\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}",
+          "type": "text"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "_id": "req_integrations_deactivate",
+      "parentId": "fld_integrations",
+      "modified": 1710849600000,
+      "created": 1710849600000,
+      "name": "Desativar Integração",
+      "description": "Desativa uma integração existente",
+      "url": "{{ _.baseUrl }}/integrations/{{ _.integrationId }}",
+      "method": "DELETE",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "_id": "fld_integrations",
+      "parentId": "wrk_workspace",
+      "modified": 1710849600000,
+      "created": 1710849600000,
+      "name": "Integrações",
+      "description": "Endpoints relacionados às integrações do sistema",
+      "type": "request_group"
+    },
+    {
+      "_id": "wrk_workspace",
+      "parentId": null,
+      "modified": 1710849600000,
+      "created": 1710849600000,
+      "name": "Omni API",
+      "description": "API de integração com WhatsApp",
+      "type": "workspace",
+      "scope": "collection",
+      "_type": "workspace"
+    },
+    {
+      "_id": "env_development",
+      "parentId": "wrk_workspace",
+      "modified": 1710849600000,
+      "created": 1710849600000,
+      "name": "Development",
+      "data": {
+        "baseUrl": "http://localhost:3000",
+        "token": "seu_token_aqui",
+        "integrationId": "1"
+      },
+      "_type": "environment"
+    }
+  ]
+} 
