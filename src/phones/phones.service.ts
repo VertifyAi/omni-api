@@ -35,13 +35,14 @@ export class PhonesService {
     });
   }
 
-  async create(phoneNumber: string): Promise<Phone> {
+  async create(phoneNumber: string, companyId?: number): Promise<Phone> {
     const { stateCode, number } = this.formatPhoneNumber(phoneNumber);
     
     const phone = this.phoneRepository.create({
       number,
       state_code: stateCode,
       country_code: '+55', // Código do Brasil
+      company_id: companyId
     });
     return this.phoneRepository.save(phone);
   }

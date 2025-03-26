@@ -1,33 +1,29 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { TicketsService } from 'src/tickets/tickets.service';
-import { HandleWebhookDto } from './dto/handle-webhook.dto';
-import { Repository } from 'typeorm';
-import { Twilio } from 'twilio';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { SenderEnum, TicketMessage } from './entities/ticket_message.entity';
-import { PhonesService } from 'src/phones/phones.service';
-import { SendMessageDto } from './dto/send-message.dto';
+import { Repository } from 'typeorm';
+import { TicketMessage, SenderEnum } from './entities/ticket_message.entity';
+import { TicketsService } from '../tickets/tickets.service';
+import { TwilioService } from '../twilio/twilio.service';
+import { TwilioWebhookDto } from './dto/twilio-webhook.dto';
 import { TicketMessagesGateway } from './ticket_messages.gateway';
 import { VeraAIService } from './vera-ai.service';
+import { HandleWebhookDto } from './dto/handle-webhook.dto';
+import { PhonesService } from '../phones/phones.service';
+import { IntegrationsService } from '../integrations/integrations.service';
 
 @Injectable()
 export class TicketMessagesService {
-  private twilioClient: Twilio;
-
   constructor(
     @InjectRepository(TicketMessage)
     private readonly ticketMessageRepository: Repository<TicketMessage>,
     @Inject(forwardRef(() => TicketsService))
     private readonly ticketsService: TicketsService,
-    private readonly phonesService: PhonesService,
+    private readonly integrationsService: IntegrationsService,
+    private readonly twilioService: TwilioService,
     private readonly ticketMessagesGateway: TicketMessagesGateway,
     private readonly veraAIService: VeraAIService,
-  ) {
-    this.twilioClient = new Twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN,
-    );
-  }
+    private readonly phonesService: PhonesService,
+  ) {}
 
   async processIncomingMessage(body: HandleWebhookDto) {
     const phoneNumber = body.From.split(':')[1];
@@ -36,23 +32,18 @@ export class TicketMessagesService {
     if (!ticket) {
       // Cria um novo ticket e adiciona a primeira mensagem
       ticket = await this.ticketsService.createTicket(phoneNumber, body.Body);
-      
-      // Busca o telefone (que já foi criado junto com o ticket se não existia)
-      const phone = await this.phonesService.findOneByPhone(phoneNumber);
-      
-      if (!phone) {
-        throw new Error('Phone not found after ticket creation');
-      }
 
       // Cria a mensagem inicial
-      const message = await this.createMessage(ticket.id, SenderEnum.CUSTOMER, body.Body);
+      const message = await this.create({
+        Body: body.Body,
+        From: body.From,
+        To: body.To,
+        MessageSid: body.MessageSid,
+      });
 
       // Se é uma nova conversa, a Vera AI deve responder
       const aiResponse = await this.veraAIService.generateResponse(body.Body);
-      await this.sendMessage({
-        From: phoneNumber,
-        Body: aiResponse
-      });
+      await this.sendMessage(ticket.id, aiResponse);
 
       // Notifica sobre a nova mensagem
       this.ticketMessagesGateway.notifyNewMessage({
@@ -72,12 +63,17 @@ export class TicketMessagesService {
       return message;
     } else {
       // Se o ticket já existe, apenas adiciona a nova mensagem
-      const message = await this.createMessage(ticket.id, SenderEnum.CUSTOMER, body.Body);
+      const message = await this.create({
+        Body: body.Body,
+        From: body.From,
+        To: body.To,
+        MessageSid: body.MessageSid,
+      });
 
       // Se o ticket ainda não foi triado, continua o processo de triagem
       if (!ticket.triaged) {
         const messages = await this.ticketsService.findMessages(ticket.id);
-        const messageContents = messages.map(m => m.message);
+        const messageContents = messages.map(m => m.content);
         const triageResult = await this.veraAIService.performTriage(messageContents);
         await this.ticketsService.updateTicketTriage(ticket.id, triageResult);
       }
@@ -93,65 +89,83 @@ export class TicketMessagesService {
     }
   }
 
-  async sendMessage(body: SendMessageDto) {
-    try {
-      const ticket = await this.ticketsService.findOpenTicketByPhone(body.From);
+  async create(webhookData: TwilioWebhookDto) {
+    // const integrations = await this.integrationsService.findByCompanyId(1); // TODO: Pegar company_id do usuário
+    // const integration = integrations.find(i => i.config?.phoneNumber === webhookData.To);
 
-      if (!ticket) {
-        throw new Error('Ticket not found');
-      }
+    // if (!integration) {
+    //   throw new NotFoundException('Integração WhatsApp não encontrada');
+    // }
 
-      const phone = await this.phonesService.findOneByPhone(body.From);
+    const customerPhone = webhookData.From.replace('whatsapp:', '');
+    // let phone = await this.phonesService.findOneByPhone(customerPhone);
+    
+    // if (!phone) {
+    //   phone = await this.phonesService.create(customerPhone, integration.company_id);
+    // }
 
-      if (!phone) {
-        throw new Error('Phone not found');
-      }
+    // let ticket = await this.ticketsService.findByPhone(phone);
+    // if (!ticket) {
+    //   ticket = await this.ticketsService.create(phone, 'Novo contato via WhatsApp');
+    // }
 
-      const message = await this.createMessage(ticket.id, SenderEnum.AGENT, body.Body);
-
-      if (!message) {
-        throw new Error('Message not created');
-      }
-
-      const result = await this.twilioClient.messages.create({
-        to: `whatsapp:${body.From}`,
-        from: `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER as string}`,
-        body: body.Body,
-      });
-
-      console.log('Message sent:', result);
-      return message;
-    } catch (error) {
-      console.error('Error details:', error);
-      throw new Error('Error while trying to send message');
-    }
-  }
-
-  async createMessage(
-    ticketId: number,
-    sender: SenderEnum,
-    message: string,
-  ) {
-    try {
-      const ticketMessage = this.ticketMessageRepository.create({
-        ticket_id: ticketId,
-        sender,
-        message: message,
-      });
-
-      return await this.ticketMessageRepository.save(ticketMessage);
-    } catch (error) {
-      console.error('Error details:', error);
-      throw new Error('Error while trying to create message');
-    }
-  }
-
-  async create(phoneNumberId: number, content: string): Promise<TicketMessage> {
-    const message = this.ticketMessageRepository.create({
-      ticket_id: 1, //identificar o ticket correto
+    const message = await this.ticketMessageRepository.save({
+      // ticket_id: ticket.id,
+      content: webhookData.Body,
       sender: SenderEnum.CUSTOMER,
-      message: content
+      whatsapp_number: customerPhone,
+      whatsapp_message_id: webhookData.MessageSid,
     });
-    return this.ticketMessageRepository.save(message);
+
+    return message;
+  }
+
+  async sendMessage(ticketId: number, content: string) {
+    const ticket = await this.ticketsService.findOne(ticketId);
+    if (!ticket) {
+      throw new NotFoundException('Ticket não encontrado');
+    }
+
+    // const integration = await this.integrationsService.findWhatsAppIntegration(ticket.company_id);
+    // if (!integration) {
+    //   throw new NotFoundException('Integração WhatsApp não encontrada');
+    // }
+
+    const phone = await this.phonesService.findOneByPhone(ticket.customer_phone_id.toString());
+    if (!phone) {
+      throw new NotFoundException('Telefone do cliente não encontrado');
+    }
+
+    // const twilioMessage = await this.twilioService.sendMessage(
+    //   phone.number,
+    //   content,
+    //   integration.config?.twilioNumberSid,
+    //   integration.config?.phoneNumber,
+    // );
+
+    const message = await this.ticketMessageRepository.save({
+      ticket_id: ticket.id,
+      content,
+      sender: SenderEnum.AGENT,
+      // whatsapp_number: integration.config?.phoneNumber,
+      // whatsapp_message_id: twilioMessage.sid,
+    });
+
+    // Notifica sobre a nova mensagem
+    this.ticketMessagesGateway.notifyNewMessage({
+      ticketId,
+      message: content,
+      sender: SenderEnum.AGENT,
+      createdAt: new Date()
+    });
+
+    return message;
+  }
+
+  async findAll(ticketId: number) {
+    return this.ticketMessageRepository.find({
+      where: { ticket_id: ticketId },
+      order: { created_at: 'ASC' },
+    });
   }
 }

@@ -11,6 +11,7 @@ import { TicketMessagesModule } from '../ticket_messages/ticket_messages.module'
 import { TicketMessage } from 'src/ticket_messages/entities/ticket_message.entity';
 import { UsersModule } from '../users/users.module';
 import { AreasModule } from '../areas/areas.module';
+import { CompaniesModule } from '../companies/companies.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AreasModule } from '../areas/areas.module';
     forwardRef(() => TicketMessagesModule),
     UsersModule,
     AreasModule,
+    CompaniesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

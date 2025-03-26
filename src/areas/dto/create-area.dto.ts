@@ -1,6 +1,6 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, IsArray, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Company } from '../../companies/entities/company.entity';
+import { Type } from 'class-transformer';
 
 export class CreateAreaDto {
   @ApiProperty({ description: 'Nome da área' })
@@ -13,7 +13,12 @@ export class CreateAreaDto {
   @IsString()
   description: string;
 
-  @ApiProperty({ description: 'Empresa à qual a área pertence' })
-  @IsNotEmpty()
-  company: Company;
+  @ApiProperty({ 
+    description: 'Lista de IDs dos usuários que participarão da equipe',
+    type: [Number]
+  })
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @Type(() => Number)
+  users: number[];
 } 

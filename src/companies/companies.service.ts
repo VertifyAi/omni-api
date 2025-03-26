@@ -17,6 +17,12 @@ export class CompaniesService {
     private readonly areasService: AreasService,
   ) {}
 
+  async findAll(): Promise<Company[]> {
+    return this.companyRepository.find({
+      relations: ['address', 'phones']
+    });
+  }
+
   async findOne(id: number): Promise<Company | null> {
     return this.companyRepository.findOne({ 
       where: { id },
@@ -24,11 +30,11 @@ export class CompaniesService {
     });
   }
 
-  async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
+  async create(createCompanyDto: CreateCompanyDto, adminUserId: number): Promise<Company> {
     try {
       // Verifica se já existe empresa com este CNPJ
       const existingCompany = await this.companyRepository.findOne({
-        where: { cnpj: createCompanyDto.cnpj }
+        where: { taxId: createCompanyDto.cnpj }
       });
 
       if (existingCompany) {
@@ -56,10 +62,10 @@ export class CompaniesService {
       });
 
       // Cria a área administrativa
-      await this.areasService.create({
+      await this.areasService.create(company.id, {
         name: 'Administrativo',
         description: 'Área administrativa da empresa',
-        company: company
+        users: [adminUserId]
       });
 
       // Retorna a empresa com suas relações
