@@ -68,6 +68,8 @@ export class CompaniesService {
         users: [adminUserId]
       });
 
+      console.log('passou do create');
+
       // Retorna a empresa com suas relações
       const savedCompany = await this.companyRepository.findOne({
         where: { id: company.id },
