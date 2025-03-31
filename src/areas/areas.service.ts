@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Area } from './entities/area.entity';
@@ -44,18 +44,17 @@ export class AreasService {
         if (!user) {
           throw new NotFoundException(`Usuário #${userId} não encontrado`);
         }
-        if (user.company.id !== companyId) {
-          throw new BadRequestException(`Usuário #${userId} não pertence à empresa`);
-        }
         return user;
       })
     );
 
+    console.log('users', users);
     const area = this.areaRepository.create({
       ...createAreaDto,
       company,
       users
     });
+    console.log('area', area);
     return this.areaRepository.save(area);
   }
 

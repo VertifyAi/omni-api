@@ -10,6 +10,7 @@ import { CompaniesService } from 'src/companies/companies.service';
 import { AreasService } from 'src/areas/areas.service';
 import * as bcrypt from 'bcrypt';
 import { CreateCompanyUserDto } from './dto/create-company-user.dto';
+import { UserRole } from './user-role.enum';
 
 @Injectable()
 export class UsersService {
@@ -30,10 +31,11 @@ export class UsersService {
         throw new ConflictException('Email já está em uso');
       }
 
-      const user = this.userRepository.create();
+      let user = this.userRepository.create();
       user.name = createUserDto.firstName + ' ' + createUserDto.lastName;
       user.email = createUserDto.email;
       user.password = await bcrypt.hash(createUserDto.password, 10);
+      user.role = UserRole.ADMIN;
 
       // Verifica se as senhas conferem
       if (createUserDto.password !== createUserDto.passwordConfirmation) {
@@ -58,10 +60,17 @@ export class UsersService {
       }
 
       user.address = userAddress;
+      user = await this.userRepository.save(user);
+      const userSaved = await this.userRepository.findOne({
+        where: { name: user.name, email: user.email },
+      });
+      
+      if (!userSaved) {
+        throw new Error('Erro ao criar usuário');
+      }
 
       // Cria a empresa
-      const company = await this.companiesService.create(createUserDto.company, user.id);
-
+      const company = await this.companiesService.create(createUserDto.company, userSaved.id);
       user.company = company;
       
       // Busca a área administrativa que foi criada automaticamente
