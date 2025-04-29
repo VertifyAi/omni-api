@@ -1,24 +1,36 @@
-import { Controller, Get, Post, Query, Body } from '@nestjs/common';
-import { HandleWebhookEventDto } from './dto/handle-webhook-event.dto';
+import { Controller, Post, Headers, Body, Get, Query } from '@nestjs/common';
+import { WhatsappWebhookDto } from './dto/handle-incoming-message.dto';
+import { TicketsService } from '../tickets/tickets.service';
 
 @Controller('webhook')
 export class WebhookController {
+  constructor(private readonly ticketsService: TicketsService) {}
   @Get()
   verifyWebhook(
     @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') token: string,
     @Query('hub.challenge') challenge: string,
-    @Query('hub.verify_token') verifyToken: string,
   ) {
-    const expectedToken = process.env.META_VERIFY_TOKEN;
-    if (mode === 'subscribe' && verifyToken === expectedToken) {
-      return challenge;
+    const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
+
+    if (mode && token) {
+      if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+        console.log('Webhook verificado com sucesso.');
+        return challenge;
+      } else {
+        return 'Erro de verificação';
+      }
     }
-    return 'Verification failed';
+    return 'Sem parâmetros de verificação';
   }
 
   @Post()
-  handleWebhookEvent(@Body() body: HandleWebhookEventDto) {
-    console.log('📩 Mensagem recebida do WhatsApp:', body);
-    return { status: 'received' };
+  async handleIncomingMessage(
+    @Headers('x-hub-signature-256') signature: string,
+    @Body() body: WhatsappWebhookDto,
+  ) {
+    console.log('Mensagem recebida do WhatsApp:');
+    console.log(JSON.stringify(body, null, 2));
+    return await this.ticketsService.handleIncomingMessage(body)
   }
 }

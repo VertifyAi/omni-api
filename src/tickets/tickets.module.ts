@@ -1,37 +1,27 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TicketsController } from './tickets.controller';
+import { HttpModule } from '@nestjs/axios';
 import { TicketsService } from './tickets.service';
+import { TicketsController } from './tickets.controller';
 import { Ticket } from './entities/ticket.entity';
-import { Phone } from 'src/phones/entities/phone.entity';
-import { PhonesModule } from 'src/phones/phones.module';
-import { TicketMessagesModule } from '../ticket_messages/ticket_messages.module';
-import { TicketMessage } from 'src/ticket_messages/entities/ticket_message.entity';
-import { UsersModule } from '../users/users.module';
-import { AreasModule } from '../areas/areas.module';
-import { CompaniesModule } from '../companies/companies.module';
+import { TicketMessage } from './entities/ticket-message.entity';
+import { CustomersModule } from '../customers/customers.module';
+import { CompaniesService } from 'src/companies/companies.service';
+import { Company } from 'src/companies/entities/company.entity';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Ticket, Phone, TicketMessage]),
-    PhonesModule,
-    forwardRef(() => TicketMessagesModule),
-    UsersModule,
-    AreasModule,
-    CompaniesModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',
-        signOptions: { expiresIn: '1d' },
-      }),
-      inject: [ConfigService],
-    }),
+    TypeOrmModule.forFeature([Ticket, TicketMessage, Company]),
+    CustomersModule,
+    TicketsModule,
+    HttpModule,
+    JwtModule,
+    ConfigModule
   ],
   controllers: [TicketsController],
-  providers: [TicketsService],
+  providers: [TicketsService, CompaniesService],
   exports: [TicketsService],
 })
 export class TicketsModule {}
