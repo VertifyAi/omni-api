@@ -7,14 +7,8 @@ import {
   DeleteDateColumn,
 } from 'typeorm';
 
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  MANAGER = 'MANAGER',
-  USER = 'USER',
-}
-
-@Entity('users')
-export class User {
+@Entity('agents')
+export class Agent {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -22,31 +16,13 @@ export class User {
   name: string;
 
   @Column()
-  email: string;
+  description: string;
 
-  @Column()
-  password: string;
+  @Column({ name: 'whatsapp_number' })
+  whatsappNumber: string;
 
-  @Column()
-  role: UserRole;
-
-  @Column({ name: 'street_name'})
-  streetName: string;
-
-  @Column({ name: 'street_number'})
-  streetNumber: string;
-
-  @Column()
-  city: string;
-
-  @Column()
-  state: string;
-
-  @Column()
-  phone: string;
-
-  @Column({ name: 'area_id' })
-  areaId: number;
+  @Column({ name: 'system_message' })
+  systemMessage: string;
 
   @Column({ name: 'company_id' })
   companyId: number;

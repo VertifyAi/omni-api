@@ -1,79 +1,61 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
-import { Area } from '../../areas/entities/area.entity';
-import { Company } from '../../companies/entities/company.entity';
-import { User } from '../../users/entities/user.entity';
-import { TicketMessage } from '../../ticket_messages/entities/ticket_message.entity';
-import { TicketPriority } from '../enums/ticket-priority.enum';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { TicketMessage } from './ticket-message.entity';
+import { Company } from 'src/companies/entities/company.entity';
+import { Customer } from 'src/customers/entities/customer.entity';
 
 export enum TicketStatus {
-  OPEN = 'open',
-  IN_PROGRESS = 'in_progress',
-  CLOSED = 'closed',
+  OPEN = 'OPEN',
+  IN_PROGRESS = 'IN_PROGRESS',
+  CLOSED = 'CLOSED',
+  CANCELED = 'CANCELED',
 }
 
-@Entity({
-  name: 'tickets',
-})
+@Entity('tickets')
 export class Ticket {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({
-    type: 'enum',
-    enum: TicketStatus,
-    default: TicketStatus.OPEN
-  })
+  @Column()
   status: TicketStatus;
 
-  @Column({
-    type: 'enum',
-    enum: TicketPriority,
-    default: TicketPriority.LOW,
-  })
-  priority: TicketPriority;
-
-  @Column('text', { nullable: true })
-  summary: string;
-
-  @Column({ default: false })
-  triaged: boolean;
+  @Column()
+  channel: string;
 
   @Column()
-  subject: string;
+  score: number;
 
-  @Column({ name: 'customer_phone_id' })
-  customer_phone_id: number;
+  @Column({ name: 'user_id' })
+  userId: number;
 
-  @Column({ name: 'area_id' })
-  area_id: number;
+  @Column({ name: 'customer_id' })
+  customerId: number;
+  
+  @Column({ name: 'area_id'})
+  areaId: number
 
-  @Column({ name: 'company_id' })
-  company_id: number;
+  @Column({ name: 'company_id'})
+  companyId: number
 
-  @Column({ name: 'user_id', nullable: true })
-  user_id: number;
+  @Column({ name: 'closed_at', nullable: true })
+  closedAt: Date;
+  
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+  
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+  
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt: Date;
 
-  @ManyToOne('Area', 'tickets')
-  @JoinColumn({ name: 'area_id' })
-  area: Area;
+  @OneToMany(() => TicketMessage, ticketMessage => ticketMessage.ticket)
+  ticketMessages: TicketMessage[];
 
-  @ManyToOne('Company', 'tickets')
+  @ManyToOne(() => Company, company => company.ticket)
   @JoinColumn({ name: 'company_id' })
   company: Company;
 
-  @ManyToOne('User', 'tickets')
-  @JoinColumn({ name: 'user_id' })
-  user: User;
-
-  @OneToMany('TicketMessage', 'ticket')
-  messages: TicketMessage[];
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
-
-  @Column({ nullable: true, type: 'timestamp' })
-  closed_at: Date;
-}
+  @ManyToOne(() => Customer, customer => customer.ticket)
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer;
+} 

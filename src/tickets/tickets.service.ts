@@ -1,15 +1,15 @@
-import { forwardRef, Inject, Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { TicketMessagesService } from 'src/ticket_messages/ticket_messages.service';
 import { Repository } from 'typeorm';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
-import { PhonesService } from 'src/phones/phones.service';
-import { TicketMessage } from 'src/ticket_messages/entities/ticket_message.entity';
-import { Phone } from '../phones/entities/phone.entity';
-import { TriageResult } from '../ticket_messages/vera-ai.service';
-import { AreasService } from '../areas/areas.service';
+import { TicketMessage } from './entities/ticket-message.entity';
+import { WhatsappWebhookDto } from '../webhook/dto/handle-incoming-message.dto';
 import { CompaniesService } from '../companies/companies.service';
-import { TicketPriority } from './enums/ticket-priority.enum';
+import { CustomersService } from '../customers/customers.service';
+import { CreateCustomerDto } from '../customers/dto/create-customer.dto';
+import { HttpService } from '@nestjs/axios';
+import { lastValueFrom } from 'rxjs';
+import { CreateAITicketMessageDto } from './dto/create-ai-ticket-message.dto';
 
 @Injectable()
 export class TicketsService {
@@ -18,168 +18,102 @@ export class TicketsService {
     private readonly ticketRepository: Repository<Ticket>,
     @InjectRepository(TicketMessage)
     private readonly ticketMessageRepository: Repository<TicketMessage>,
-    private readonly phoneService: PhonesService,
-    private readonly areasService: AreasService,
+    private readonly customersService: CustomersService,
     private readonly companiesService: CompaniesService,
-    @Inject(forwardRef(() => TicketMessagesService))
-    private readonly ticketMessagesService: TicketMessagesService
+    private readonly httpService: HttpService,
   ) {}
 
-  async findAll(companyId: number): Promise<Ticket[]> {
-    return this.ticketRepository.find({
-      where: { company_id: companyId },
-      relations: ['area', 'user', 'messages'],
-      order: {
-        created_at: 'DESC'
-      }
-    });
-  }
+  async handleIncomingMessage(
+    createTicketMessageDto: WhatsappWebhookDto,
+  ): Promise<void> {
+    const company = await this.companiesService.findCompanyByPhone(
+      createTicketMessageDto.entry[0].changes[0].value.metadata
+        .display_phone_number,
+    );
 
-  async findByPhone(phone: Phone): Promise<Ticket | null> {
-    return this.ticketRepository.findOne({
-      where: { 
-        customer_phone_id: phone.id,
-        status: TicketStatus.OPEN 
-      },
-    });
-  }
-
-  async create(phone: Phone, subject: string): Promise<Ticket> {
-    // Busca a área administrativa da empresa do telefone
-    const areas = await this.areasService.findByCompanyId(phone.company_id);
-    const area = areas.find(a => a.name === 'Administrativo');
-    
-    if (!area) {
-      throw new Error('Área administrativa não encontrada');
+    if (!company) {
+      throw new NotFoundException('Company not found');
     }
 
-    const ticket = this.ticketRepository.create({
-      subject,
-      customer_phone_id: phone.id,
+    let customer = await this.customersService.findOneByPhone(
+      createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
+    );
+
+    if (!customer) {
+      customer = await this.customersService.create({
+        phone:
+          createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
+        name: createTicketMessageDto.entry[0].changes[0].value.contacts[0]
+          .profile.name,
+      } as CreateCustomerDto);
+    }
+
+    let ticket = await this.ticketRepository.findOneBy({
+      customerId: customer.id,
       status: TicketStatus.OPEN,
-      area_id: area.id,
-      company_id: phone.company_id
-    });
-    return this.ticketRepository.save(ticket);
-  }
-
-  async findById(ticketId: number, companyId: number): Promise<Ticket | null> {
-    return this.ticketRepository.findOne({
-      where: { 
-        id: ticketId,
-        company_id: companyId 
-      },
-    });
-  }
-
-  async findMessages(ticketId: number): Promise<TicketMessage[]> {
-    return this.ticketMessageRepository.find({
-      where: { ticket_id: ticketId },
-    });
-  }
-
-  async getTicketMessages(ticketId: number, companyId: number) {
-    // Primeiro verifica se o ticket pertence à empresa
-    const ticket = await this.ticketRepository.findOne({
-      where: { id: ticketId, company_id: companyId }
     });
 
-    if (!ticket) {
-      throw new UnauthorizedException('Ticket não pertence a esta empresa');
-    }
-
-    const messages = await this.ticketMessageRepository.find({
-      where: { ticket_id: ticketId },
-      order: { id: 'ASC' },
-    });
-
-    if (!messages || messages.length === 0) {
-      return [];
-    }
-
-    return messages;
-  }
-
-  async findOpenTicketByPhone(phoneNumber: string): Promise<Ticket | null> {
-    const phone = await this.phoneService.findOneByPhone(phoneNumber);
-    if (!phone) return null;
-    return this.findByPhone(phone);
-  }
-
-  async createTicket(phoneNumber: string, subject: string): Promise<Ticket> {
-    let phone = await this.phoneService.findOneByPhone(phoneNumber);
-    
-    // Se o telefone não existir, cria um novo
-    if (!phone) {
-      // Busca a primeira empresa para usar como padrão
-      const companies = await this.companiesService.findAll();
-      if (!companies || companies.length === 0) {
-        throw new Error('Nenhuma empresa encontrada');
-      }
-      const defaultCompany = companies[0];
-      phone = await this.phoneService.create(phoneNumber, defaultCompany.id);
-    }
-
-    return this.create(phone, subject);
-  }
-
-  async updateTicketTriage(ticketId: number, triageResult: TriageResult): Promise<Ticket> {
-    const ticket = await this.ticketRepository.findOne({
-      where: { id: ticketId }
-    });
-
-    if (!ticket) {
-      throw new Error('Ticket não encontrado');
-    }
-
-    ticket.priority = triageResult.priority;
-    ticket.summary = triageResult.summary;
-    ticket.triaged = true;
-    ticket.area_id = triageResult.suggestedAreaId;
-
-    return this.ticketRepository.save(ticket);
-  }
-
-  async createOrUpdateFromWhatsApp(data: { customerPhone: string; message: string; companyId: number }) {
-    // Procura por um ticket aberto do cliente
-    let ticket = await this.ticketRepository.findOne({
-      where: {
-        customer_phone_id: parseInt(data.customerPhone),
-        company_id: data.companyId,
-        status: TicketStatus.OPEN,
-      },
-    });
-
-    // Se não encontrar, cria um novo
     if (!ticket) {
       ticket = this.ticketRepository.create({
-        customer_phone_id: parseInt(data.customerPhone),
-        company_id: data.companyId,
         status: TicketStatus.OPEN,
-        priority: TicketPriority.LOW,
-        summary: data.message.substring(0, 100), // Primeiros 100 caracteres como resumo
-        subject: 'Novo contato via WhatsApp',
+        customerId: customer.id,
+        companyId: company.id,
+        channel: createTicketMessageDto.entry[0].changes[0].value.messaging_product
       });
+      await this.ticketRepository.save(ticket);
     }
 
-    return this.ticketRepository.save(ticket);
-  }
-
-  async findOne(id: number) {
-    const ticket = await this.ticketRepository.findOne({
-      where: { id },
+    const ticketMessage = this.ticketMessageRepository.create({
+      phone: createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
+      message:
+        createTicketMessageDto.entry[0].changes[0].value.messages[0].text.body,
+      customerName:
+        createTicketMessageDto.entry[0].changes[0].value.contacts[0].profile
+          .name,
+      ticketId: ticket.id,
     });
+    await this.ticketMessageRepository.save(ticketMessage);
 
-    if (!ticket) {
-      throw new NotFoundException('Ticket não encontrado');
+    const webhookData = {
+      type: createTicketMessageDto.entry[0].changes[0].value.messages[0].type,
+      content:
+        createTicketMessageDto.entry[0].changes[0].value.messages[0].text
+          ?.body || null,
+      audio:
+        createTicketMessageDto.entry[0].changes[0].value.messages[0].type ===
+        'audio'
+          ? createTicketMessageDto.entry[0].changes[0].value.messages[0]
+          : null,
+      ticketId: ticket.id,
+      customerPhone: ticketMessage.phone,
+      customerName: ticketMessage.customerName,
+    };
+
+    try {
+      await lastValueFrom(this.httpService.post(
+        'https://n8n.vertify.com.br/webhook-test/7e33648b-9146-466f-ae26-cd8959fc729e',
+        webhookData,
+      ));
+    } catch (error) {
+      console.error('Erro ao enviar webhook:', error);
     }
-
-    return ticket;
   }
 
-  async update(id: number, data: Partial<Ticket>) {
-    const ticket = await this.findOne(id);
-    Object.assign(ticket, data);
-    return this.ticketRepository.save(ticket);
+  async findAllTickets(companyId: number) {
+    return await this.ticketRepository.find({
+      where: {
+        companyId
+      },
+      relations: ['company', 'customer']
+    })
+  }
+
+  async createAITicketMessage(createAITicketMessage: CreateAITicketMessageDto) {
+    const ticket = this.ticketMessageRepository.create({
+      phone: '5511914403625',
+      message: createAITicketMessage.content,
+      ticketId: createAITicketMessage.ticketId,
+    })
+    console.log(ticket)
   }
 }
