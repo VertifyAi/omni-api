@@ -33,4 +33,10 @@ export class AgentsService {
       id: Number(agentId),
     });
   }
+
+  async findOneAgentByWhatsappNumber(whatsappNumber: string) {
+    return await this.agentRepository.findOneBy({
+      whatsappNumber
+    })
+  }
 }

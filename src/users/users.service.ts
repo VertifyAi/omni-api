@@ -22,4 +22,10 @@ export class UsersService {
     await this.userRepository.save(user);
     return user;
   }
+
+  async findOneById(id: number) {
+    return await this.userRepository.findOneBy({
+      id,
+    });
+  }
 }
