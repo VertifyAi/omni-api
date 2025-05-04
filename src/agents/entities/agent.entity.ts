@@ -5,7 +5,9 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { Ticket } from 'src/tickets/entities/ticket.entity';
 
 @Entity('agents')
 export class Agent {
@@ -35,4 +37,7 @@ export class Agent {
 
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt: Date;
+
+  @OneToMany(() => Ticket, ticket => ticket.agent)
+  tickets: Ticket[];
 }

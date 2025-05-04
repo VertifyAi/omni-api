@@ -4,8 +4,15 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Ticket } from './ticket.entity';
+
+export enum TicketMessageSender {
+  AI = 'AI',
+  USER = 'USER',
+  CUSTOMER = 'CUSTOMER'
+}
 
 @Entity('ticket_messages')
 export class TicketMessage {
@@ -15,16 +22,22 @@ export class TicketMessage {
   @Column()
   phone: string;
 
-  @Column()
+  @Column({
+    type: 'longtext'
+  })
   message: string;
 
-  @Column({ name: 'customer_name' })
-  customerName: string;
+  @Column({ name: 'sender_name' })
+  senderName: string;
+
+  @Column()
+  sender: TicketMessageSender
 
   @Column({ name: 'ticket_id' })
   ticketId: number;
 
   @ManyToOne(() => Ticket, (ticket) => ticket.ticketMessages)
+  @JoinColumn({ name: 'ticket_id' })
   ticket: Ticket;
 
   @CreateDateColumn({ name: 'created_at' })

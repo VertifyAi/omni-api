@@ -29,8 +29,6 @@ export class WebhookController {
     @Headers('x-hub-signature-256') signature: string,
     @Body() body: WhatsappWebhookDto,
   ) {
-    console.log('Mensagem recebida do WhatsApp:');
-    console.log(JSON.stringify(body, null, 2));
     return await this.ticketsService.handleIncomingMessage(body)
   }
 }

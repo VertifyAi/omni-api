@@ -2,12 +2,12 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 import { TicketMessage } from './ticket-message.entity';
 import { Company } from 'src/companies/entities/company.entity';
 import { Customer } from 'src/customers/entities/customer.entity';
+import { Agent } from 'src/agents/entities/agent.entity';
 
 export enum TicketStatus {
-  OPEN = 'OPEN',
+  AI = 'AI',
   IN_PROGRESS = 'IN_PROGRESS',
   CLOSED = 'CLOSED',
-  CANCELED = 'CANCELED',
 }
 
 @Entity('tickets')
@@ -26,6 +26,9 @@ export class Ticket {
 
   @Column({ name: 'user_id' })
   userId: number;
+
+  @Column({ name: 'agent_id'})
+  agentId: number;
 
   @Column({ name: 'customer_id' })
   customerId: number;
@@ -58,4 +61,8 @@ export class Ticket {
   @ManyToOne(() => Customer, customer => customer.ticket)
   @JoinColumn({ name: 'customer_id' })
   customer: Customer;
+
+  @ManyToOne(() => Agent, agent => agent.tickets)
+  @JoinColumn({ name: 'agent_id' })
+  agent: Agent;
 } 
