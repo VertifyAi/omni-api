@@ -1,15 +1,38 @@
-import { Controller, Post, Request, UseGuards, Body } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Request,
+  UseGuards,
+  Body,
+  Get,
+} from '@nestjs/common';
 import { IntegrationsService } from './integrations.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { WhatsappIntegrationDto } from './dto/whatsapp-integration.dto';
 
+@UseGuards(AuthGuard)
 @Controller('integrations')
 export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
 
-  @UseGuards(AuthGuard) 
   @Post('whatsapp')
-  async slackIntegration(@Request() req, @Body() whatsappIntegrationDto: WhatsappIntegrationDto) {
-    return await this.integrationsService.whatsappIntegration(req.user, whatsappIntegrationDto);
+  async whatsappIntegration(
+    @Request() req,
+    @Body() whatsappIntegrationDto: WhatsappIntegrationDto,
+  ) {
+    return await this.integrationsService.whatsappIntegration(
+      req.user,
+      whatsappIntegrationDto,
+    );
+  }
+
+  @Get()
+  async getIntegrations(@Request() req) {
+    return await this.integrationsService.findAllIntegrations(req.user);
+  }
+
+  @Get('whatsapp/phone_numbers')
+  async getWhatsappPhoneNumbers(@Request() req) {
+    return await this.integrationsService.getWhatsappPhoneNumbers(req.user);
   }
 }
