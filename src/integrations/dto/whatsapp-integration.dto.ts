@@ -1,7 +1,15 @@
-import { IsNotEmpty, IsJSON } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
 
 export class WhatsappIntegrationDto {
-  @IsJSON()
+  @IsString()
   @IsNotEmpty()
-  config: string;
+  access_token: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  data_access_expiration_time: number
+
+  @IsNumber()
+  @IsNotEmpty()
+  expires_in: number;
 }

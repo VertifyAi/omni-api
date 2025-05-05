@@ -21,9 +21,6 @@ export class Integration {
   @Column()
   type: IntegrationType;
 
-  @Column()
-  name: string;
-
   @Column({ name: 'company_id' })
   companyId: number;
 
