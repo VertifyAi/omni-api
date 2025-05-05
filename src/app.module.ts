@@ -10,6 +10,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AgentsModule } from './agents/agents.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AgentsModule } from './agents/agents.module';
     AuthModule,
     UsersModule,
     AgentsModule,
+    IntegrationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

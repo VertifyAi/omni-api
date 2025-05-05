@@ -1,12 +1,14 @@
+import { Integration } from 'src/integrations/entities/integration.entity';
 import { Ticket } from 'src/tickets/entities/ticket.entity';
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany } from 'typeorm';
-
-export enum TicketStatus {
-  OPEN = 'OPEN',
-  IN_PROGRESS = 'IN_PROGRESS',
-  CLOSED = 'CLOSED',
-  CANCELED = 'CANCELED',
-}
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+  OneToMany,
+} from 'typeorm';
 
 @Entity('companies')
 export class Company {
@@ -19,10 +21,10 @@ export class Company {
   @Column()
   email: string;
 
-  @Column({ name: 'street_name'})
+  @Column({ name: 'street_name' })
   streetName: string;
 
-  @Column({ name: 'street_number'})
+  @Column({ name: 'street_number' })
   streetNumber: string;
 
   @Column()
@@ -43,6 +45,9 @@ export class Company {
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt: Date;
 
-  @OneToMany(() => Ticket, ticket => ticket.company)
+  @OneToMany(() => Ticket, (ticket) => ticket.company)
   ticket: Ticket[];
-} 
+
+  @OneToMany(() => Integration, (integration) => integration.company)
+  integration: Integration[];
+}
