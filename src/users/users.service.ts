@@ -34,4 +34,12 @@ export class UsersService {
       id,
     });
   }
+
+  async findAll(companyId: number) {
+    return await this.userRepository.find({
+      where: {
+        companyId,
+      },
+    });
+  }
 }
