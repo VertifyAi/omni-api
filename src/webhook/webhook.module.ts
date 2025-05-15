@@ -12,6 +12,7 @@ import { ChatGateway } from 'src/gateway/chat.gateway';
 import { JwtModule } from '@nestjs/jwt';
 import { UsersModule } from 'src/users/users.module';
 import { User } from 'src/users/entities/user.entity';
+import { VeraiModule } from 'src/verai/verai.module';
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { User } from 'src/users/entities/user.entity';
     HttpModule,
     AgentsModule,
     JwtModule,
-    UsersModule
+    UsersModule,
+    VeraiModule,
   ],
   controllers: [WebhookController],
   providers: [TicketsService, ChatGateway],

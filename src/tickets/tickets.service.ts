@@ -19,6 +19,8 @@ import { ChangeTicketStatusDto } from './dto/change-ticket-status.dto';
 import { User } from 'src/users/entities/user.entity';
 import { UsersService } from 'src/users/users.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { VeraiService } from 'src/verai/verai.service';
+import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
 
 @Injectable()
 export class TicketsService {
@@ -33,6 +35,7 @@ export class TicketsService {
     private readonly usersService: UsersService,
     private readonly httpService: HttpService,
     private readonly chatGateway: ChatGateway,
+    private readonly veraiService: VeraiService,
   ) {}
 
   async handleIncomingMessage(
@@ -100,16 +103,25 @@ export class TicketsService {
 
     try {
       if (ticket.status === TicketStatus.AI) {
-        await lastValueFrom(
-          this.httpService.post(
-            'https://n8n.vertify.com.br/webhook/7e33648b-9146-466f-ae26-cd8959fc729e',
-            {
-              ...ticketMessage,
-              type: createTicketMessageDto.entry[0].changes[0].value.messages[0]
-                .type,
-            },
-          ),
-        );
+        // await lastValueFrom(
+        //   this.httpService.post(
+        //     'https://n8n.vertify.com.br/webhook-test/7e33648b-9146-466f-ae26-cd8959fc729e',
+        //     {
+        //       ...ticketMessage,
+        //       type: createTicketMessageDto.entry[0].changes[0].value.messages[0]
+        //         .type,
+        //       companyId: company.id,
+        //       agentId: agent.id,
+        //     },
+        //   ),
+        // );
+
+        await this.veraiService.chat({
+          conversationId: ticket.id,
+          message:
+            createTicketMessageDto.entry[0].changes[0].value.messages[0].text
+              .body,
+        } as ChatWithVerAiDto);
       }
       this.chatGateway.emitNewMessage(ticketMessage);
     } catch (error) {

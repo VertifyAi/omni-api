@@ -11,6 +11,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AgentsModule } from './agents/agents.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { VeraiModule } from './verai/verai.module';
+import { TeamsModule } from './teams/teams.module';
+import { UtilsModule } from './utils/utils.module';
 
 @Module({
   imports: [
@@ -33,6 +36,9 @@ import { IntegrationsModule } from './integrations/integrations.module';
     UsersModule,
     AgentsModule,
     IntegrationsModule,
+    VeraiModule,
+    TeamsModule,
+    UtilsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

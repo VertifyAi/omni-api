@@ -8,6 +8,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Company } from 'src/companies/entities/company.entity';
+import { WhatsappIntegrationDto } from '../dto/whatsapp-integration.dto';
 
 export enum IntegrationType {
   WHATSAPP = 'WHATSAPP',
@@ -24,8 +25,14 @@ export class Integration {
   @Column({ name: 'company_id' })
   companyId: number;
 
-  @Column()
-  config: string;
+  @Column({
+    type: 'json',
+    transformer: {
+      to: (value: WhatsappIntegrationDto) => JSON.stringify(value),
+      from: (value: string) => value,
+    },
+  })
+  config: WhatsappIntegrationDto;
 
   @Column()
   active: boolean;
