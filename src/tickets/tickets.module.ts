@@ -15,7 +15,9 @@ import { AgentsModule } from 'src/agents/agents.module';
 import { UsersModule } from 'src/users/users.module';
 import { UsersService } from 'src/users/users.service';
 import { User } from 'src/users/entities/user.entity';
-
+import { VeraiModule } from 'src/verai/verai.module';
+import { VeraiService } from 'src/verai/verai.service';
+import { UtilsModule } from 'src/utils/utils.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ticket, TicketMessage, Company, User]),
@@ -25,10 +27,18 @@ import { User } from 'src/users/entities/user.entity';
     JwtModule,
     ConfigModule,
     AgentsModule,
-    UsersModule
+    UsersModule,
+    VeraiModule,
+    UtilsModule,
   ],
   controllers: [TicketsController],
-  providers: [TicketsService, CompaniesService, ChatGateway, UsersService],
+  providers: [
+    TicketsService,
+    CompaniesService,
+    ChatGateway,
+    UsersService,
+    VeraiService,
+  ],
   exports: [TicketsService],
 })
 export class TicketsModule {}

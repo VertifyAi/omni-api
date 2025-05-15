@@ -8,11 +8,12 @@ import { AuthController } from './auth.controller';
 import { jwtConstants } from './constants';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from 'src/users/users.service';
-
+import { UtilsModule } from 'src/utils/utils.module';
 @Module({
   imports: [
     ConfigModule,
     UsersModule,
+    UtilsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

@@ -39,10 +39,6 @@ export class CreateUserDto {
   phone: string
 
   @IsNumber()
-  @IsNotEmpty()
-  companyId: number;
-
-  @IsNumber()
   @IsOptional()
   areaId: number;
 }

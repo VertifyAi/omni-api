@@ -5,8 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  OneToMany,
 } from 'typeorm';
-
+import { Team } from 'src/teams/entities/teams.entity';
+import { Exclude } from 'class-transformer';
 export enum UserRole {
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
@@ -24,6 +26,7 @@ export class User {
   @Column()
   email: string;
 
+  @Exclude()
   @Column()
   password: string;
 
@@ -59,4 +62,7 @@ export class User {
 
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt: Date;
+
+  @OneToMany(() => Team, (team) => team.owner)
+  teams: Team[];
 }

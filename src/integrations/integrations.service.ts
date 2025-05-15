@@ -5,7 +5,7 @@ import { Integration, IntegrationType } from './entities/integration.entity';
 import { User } from 'src/users/entities/user.entity';
 import { WhatsappIntegrationDto } from './dto/whatsapp-integration.dto';
 import { HttpService } from '@nestjs/axios';
-// import { lastValueFrom } from 'rxjs';
+import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class IntegrationsService {
@@ -33,7 +33,7 @@ export class IntegrationsService {
       companyId: currentUser.companyId,
       type: IntegrationType.WHATSAPP,
       active: true,
-      config: JSON.stringify(whatsappIntegrationDto),
+      config: whatsappIntegrationDto,
     });
     await this.integrationRepository.save(integration);
     return integration;
@@ -55,20 +55,36 @@ export class IntegrationsService {
       throw new Error('Integration not found');
     }
 
-    const config = JSON.parse(integration.config);
-    console.log('config', config);
+    const response = [] as unknown[];
 
-    // await lastValueFrom(
-    //   this.httpService.post(
-    //     `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`,
-    //     whatsappPayload,
-    //     {
-    //       headers: {
-    //         Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
-    //         'Content-Type': 'application/json',
-    //       },
-    //     },
-    //   ),
-    // );
+    const { data } = await lastValueFrom(
+      this.httpService.get(
+        `https://graph.facebook.com/v22.0/me?fields=businesses&access_token=${integration.config.access_token}`,
+      ),
+    );
+
+    for (const business of data.businesses.data) {
+      const { data: wabaData } = await lastValueFrom(
+        this.httpService.get(
+          `https://graph.facebook.com/v22.0/${business.id}/owned_whatsapp_business_accounts?access_token=${integration.config.access_token}`,
+        ),
+      );
+
+      for (const account of wabaData.data) {
+        const { data: phoneData } = await lastValueFrom(
+          this.httpService.get(
+            `https://graph.facebook.com/v22.0/${account.id}?fields=phone_numbers&access_token=${integration.config.access_token}`,
+          ),
+        );
+
+        if (phoneData.phone_numbers) {
+          for (const phone of phoneData.phone_numbers.data) {
+            response.push(phone);
+          }
+        }
+      }
+    }
+
+    return response
   }
 }

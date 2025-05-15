@@ -9,7 +9,7 @@ import {
   DeleteDateColumn,
   OneToMany,
 } from 'typeorm';
-
+import { Team } from 'src/teams/entities/teams.entity';
 @Entity('companies')
 export class Company {
   @PrimaryGeneratedColumn()
@@ -50,4 +50,7 @@ export class Company {
 
   @OneToMany(() => Integration, (integration) => integration.company)
   integration: Integration[];
+
+  @OneToMany(() => Team, (team) => team.company)
+  teams: Team[];
 }
