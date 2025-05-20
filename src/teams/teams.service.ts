@@ -24,16 +24,16 @@ export class TeamsService {
       id: createTeamDto.ownerId,
     });
 
+    if (!owner) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
     const team = this.teamsRepository.create({
       name: createTeamDto.name,
       description: createTeamDto.description,
       companyId,
       ownerId: createTeamDto.ownerId,
     });
-
-    if (owner) {
-      team.owner = owner;
-    }
 
     const savedTeam = await this.teamsRepository.save(team);
 
@@ -46,7 +46,6 @@ export class TeamsService {
         return this.usersAreasRepository.create({
           userId: user.id,
           teamId: savedTeam.id,
-          user,
         });
       });
 
@@ -69,12 +68,15 @@ export class TeamsService {
       where: { companyId },
       relations: {
         owner: true,
+        members: true,
+        company: true,
       },
     });
 
     for (const team of teams) {
       const usersAreas = await this.usersAreasRepository.find({
         where: { teamId: team.id },
+        relations: ['user'],
       });
 
       if (usersAreas.length > 0) {

@@ -24,6 +24,11 @@ export class Ticket {
   @Column()
   score: number;
 
+  @Column({
+    type: 'json',
+  })
+  state: string;
+
   @Column({ name: 'user_id' })
   userId: number;
 

@@ -20,10 +20,29 @@ import { User } from 'src/users/entities/user.entity';
 import { UsersService } from 'src/users/users.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { VeraiService } from 'src/verai/verai.service';
-import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
+import { Team } from 'src/teams/entities/teams.entity';
+// import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
+
+interface MessageBuffer {
+  messages: string[];
+  timer: NodeJS.Timeout;
+  customerId: number;
+  companyId: number;
+  agentId: number;
+  channel: string;
+  customerName: string;
+  customerPhone: string;
+  newCustomer: boolean;
+  agentConfig: string;
+  agentSystemMessage: string;
+  teams: Team[];
+}
 
 @Injectable()
 export class TicketsService {
+  private messageBuffers: Map<string, MessageBuffer> = new Map();
+  private readonly BUFFER_TIMEOUT = 10000; // 10 segundos
+
   constructor(
     @InjectRepository(Ticket)
     private readonly ticketRepository: Repository<Ticket>,
@@ -37,6 +56,74 @@ export class TicketsService {
     private readonly chatGateway: ChatGateway,
     private readonly veraiService: VeraiService,
   ) {}
+
+  private async processBufferedMessages(bufferKey: string) {
+    console.log("processBufferedMessages", bufferKey);
+    const buffer = this.messageBuffers.get(bufferKey);
+    if (!buffer) return;
+    this.messageBuffers.delete(bufferKey);
+
+    let ticket = await this.ticketRepository.findOneBy({
+      customerId: buffer.customerId,
+    });
+
+    let newTicket = false;
+    if (!ticket) {
+      ticket = this.ticketRepository.create({
+        status: TicketStatus.AI,
+        customerId: buffer.customerId,
+        companyId: buffer.companyId,
+        agentId: buffer.agentId,
+        channel: buffer.channel,
+      });
+      await this.ticketRepository.save(ticket);
+      this.chatGateway.emitNewTicket(ticket.id);
+      newTicket = true;
+    }
+
+    // Processa cada mensagem individualmente
+    for (const message of buffer.messages) {
+      const ticketMessage = this.ticketMessageRepository.create({
+        phone: buffer.customerPhone,
+        message: message,
+        senderName: buffer.customerName,
+        ticketId: ticket.id,
+        sender: TicketMessageSender.CUSTOMER,
+      });
+      await this.ticketMessageRepository.save(ticketMessage);
+      this.chatGateway.emitNewMessage(ticketMessage);
+    }
+
+    try {
+      if (ticket.status === TicketStatus.AI) {
+        // Envia a última mensagem para o webhook
+        const lastMessage = buffer.messages[buffer.messages.length - 1];
+        await lastValueFrom(
+          this.httpService.post(
+            'https://n8n.vertify.com.br/webhook/7e33648b-9146-466f-ae26-cd8959fc729e',
+            {
+              phone: buffer.customerPhone,
+              message: lastMessage,
+              senderName: buffer.customerName,
+              ticketId: ticket.id,
+              sender: TicketMessageSender.CUSTOMER,
+              type: 'text',
+              companyId: buffer.companyId,
+              agentId: buffer.agentId,
+              newTicket,
+              newCustomer: buffer.newCustomer,
+              state: ticket.state || {},
+              agentConfig: buffer.agentConfig,
+              agentSystemMessage: buffer.agentSystemMessage,
+              teams: buffer.teams,
+            },
+          ),
+        );
+      }
+    } catch (error) {
+      console.error('Erro ao enviar webhook:', error);
+    }
+  }
 
   async handleIncomingMessage(
     createTicketMessageDto: WhatsappWebhookDto,
@@ -63,6 +150,7 @@ export class TicketsService {
       createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
     );
 
+    let newCustomer = false;
     if (!customer) {
       customer = await this.customersService.create({
         phone:
@@ -70,62 +158,42 @@ export class TicketsService {
         name: createTicketMessageDto.entry[0].changes[0].value.contacts[0]
           .profile.name,
       } as CreateCustomerDto);
+      newCustomer = true;
     }
 
-    let ticket = await this.ticketRepository.findOneBy({
-      customerId: customer.id,
-    });
+    const message = createTicketMessageDto.entry[0].changes[0].value.messages[0].text.body;
+    const bufferKey = `${customer.id}-${company.id}`;
 
-    if (!ticket) {
-      ticket = this.ticketRepository.create({
-        status: TicketStatus.AI,
+    console.log("company", company);
+
+    // Se já existe um buffer para este cliente/empresa
+    if (this.messageBuffers.has(bufferKey)) {
+      const buffer = this.messageBuffers.get(bufferKey);
+      if (buffer) {
+        buffer.messages.push(message);
+        clearTimeout(buffer.timer);
+        buffer.timer = setTimeout(() => {
+          this.processBufferedMessages(bufferKey);
+        }, this.BUFFER_TIMEOUT);
+      }
+    } else {
+      const buffer: MessageBuffer = {
+        messages: [message],
+        timer: setTimeout(() => {
+          this.processBufferedMessages(bufferKey);
+        }, this.BUFFER_TIMEOUT),
         customerId: customer.id,
         companyId: company.id,
         agentId: agent.id,
-        channel:
-          createTicketMessageDto.entry[0].changes[0].value.messaging_product,
-      });
-      await this.ticketRepository.save(ticket);
-      this.chatGateway.emitNewTicket(ticket.id);
-    }
-
-    const ticketMessage = this.ticketMessageRepository.create({
-      phone: createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
-      message:
-        createTicketMessageDto.entry[0].changes[0].value.messages[0].text.body,
-      senderName:
-        createTicketMessageDto.entry[0].changes[0].value.contacts[0].profile
-          .name,
-      ticketId: ticket.id,
-      sender: TicketMessageSender.CUSTOMER,
-    });
-    await this.ticketMessageRepository.save(ticketMessage);
-
-    try {
-      if (ticket.status === TicketStatus.AI) {
-        // await lastValueFrom(
-        //   this.httpService.post(
-        //     'https://n8n.vertify.com.br/webhook-test/7e33648b-9146-466f-ae26-cd8959fc729e',
-        //     {
-        //       ...ticketMessage,
-        //       type: createTicketMessageDto.entry[0].changes[0].value.messages[0]
-        //         .type,
-        //       companyId: company.id,
-        //       agentId: agent.id,
-        //     },
-        //   ),
-        // );
-
-        await this.veraiService.chat({
-          conversationId: ticket.id,
-          message:
-            createTicketMessageDto.entry[0].changes[0].value.messages[0].text
-              .body,
-        } as ChatWithVerAiDto);
-      }
-      this.chatGateway.emitNewMessage(ticketMessage);
-    } catch (error) {
-      console.error('Erro ao enviar webhook:', error);
+        agentConfig: agent.config,
+        agentSystemMessage: agent.systemMessage,
+        channel: createTicketMessageDto.entry[0].changes[0].value.messaging_product,
+        customerName: createTicketMessageDto.entry[0].changes[0].value.contacts[0].profile.name,
+        customerPhone: createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
+        newCustomer,
+        teams: company.teams,
+      };
+      this.messageBuffers.set(bufferKey, buffer);
     }
   }
 

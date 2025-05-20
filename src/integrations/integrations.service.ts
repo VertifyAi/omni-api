@@ -35,6 +35,7 @@ export class IntegrationsService {
       active: true,
       config: whatsappIntegrationDto,
     });
+    console.log("integration", integration);
     await this.integrationRepository.save(integration);
     return integration;
   }
