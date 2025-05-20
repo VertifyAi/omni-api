@@ -18,8 +18,11 @@ export class CompaniesService {
   }
 
   async findCompanyByPhone(phone: string): Promise<Company | null> {
-    const company = await this.companyRepository.findOneBy({
-      phone,
+    const company = await this.companyRepository.findOne({
+      where: {
+        phone,
+      },
+      relations: ['teams'],
     });
 
     return company;

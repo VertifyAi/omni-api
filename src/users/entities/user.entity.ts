@@ -6,6 +6,8 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
 import { Team } from 'src/teams/entities/teams.entity';
 import { Exclude } from 'class-transformer';
@@ -64,5 +66,9 @@ export class User {
   deletedAt: Date;
 
   @OneToMany(() => Team, (team) => team.owner)
+  ownedTeams: Team[];
+
+  @ManyToMany(() => Team, (team) => team.members)
+  @JoinTable()
   teams: Team[];
 }

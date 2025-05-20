@@ -9,6 +9,7 @@ import {
   ManyToOne,
   ManyToMany,
   JoinTable,
+  JoinColumn,
 } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 
@@ -28,21 +29,23 @@ export class Team {
 
   @Column({ name: 'owner_id' })
   ownerId: number;
-
-  @ManyToOne(() => Company, (company) => company.teams)
-  company: Company;
-
-  @ManyToOne(() => User, (user) => user.teams)
-  owner: User;
-
+  
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-
+  
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
+  
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt: Date;
+
+  @ManyToOne(() => Company, (company) => company.teams)
+  @JoinColumn({ name: 'company_id' })
+  company: Company;
+
+  @ManyToOne(() => User, (user) => user.ownedTeams)
+  @JoinColumn({ name: 'owner_id' })
+  owner: User;
 
   @ManyToMany(() => User, (user) => user.teams)
   @JoinTable()

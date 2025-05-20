@@ -20,6 +20,11 @@ export class Agent {
   @Column()
   description: string;
 
+  @Column({
+    type: 'json',
+  })
+  config: string;
+
   @Column({ name: 'whatsapp_number' })
   whatsappNumber: string;
 
