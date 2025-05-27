@@ -1,15 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InternalServerErrorException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { Customer } from './entities/customer.entity';
 import { CreateCustomerDto } from './dto/create-customer.dto';
-
+import { UpdateCustomerDto } from './dto/update-customer.dto';
 @Injectable()
 export class CustomersService {
   constructor(
     @InjectRepository(Customer)
-    private readonly customerRepository: Repository<Customer>
+    private readonly customerRepository: Repository<Customer>,
   ) {}
 
   async create(createCustomerDto: CreateCustomerDto) {
@@ -22,16 +22,74 @@ export class CustomersService {
     }
   }
 
-  async findOneByPhone(phone: string): Promise<Customer | null> {
+  async findOneByPhone(
+    phone: string,
+    companyId: number,
+  ): Promise<Customer | null> {
     try {
-      const customer = await this.customerRepository.findOneBy({
-        phone,
+      const customer = await this.customerRepository.findOne({
+        where: {
+          phone,
+          companyId,
+        },
       });
 
       return customer;
     } catch (error) {
+      console.log('error', error);
       throw new InternalServerErrorException(
         `Error searching for customer by phone ${phone}: ${error.message}`,
+      );
+    }
+  }
+
+  async findAll(companyId: number): Promise<Customer[]> {
+    return this.customerRepository.find({
+      where: {
+        companyId,
+      },
+    });
+  }
+
+  async findOne(companyId: number, id: string): Promise<Customer | null> {
+    return this.customerRepository.findOne({
+      where: { id: parseInt(id), companyId },
+    });
+  }
+
+  async findOneById(id: string): Promise<Customer | null> {
+    return this.customerRepository.findOneBy({ id: parseInt(id) });
+  }
+
+  async update(
+    companyId: number,
+    id: string,
+    updateCustomerDto: UpdateCustomerDto,
+  ) {
+    try {
+      const customer = await this.findOne(companyId, id);
+      if (!customer) {
+        throw new NotFoundException('Cliente não encontrado');
+      }
+
+      const updatedCustomer = await this.customerRepository.save({
+        ...customer,
+        name: updateCustomerDto.name ?? customer.name,
+        email: updateCustomerDto.email ?? customer.email,
+        streetName: updateCustomerDto.street_name ?? customer.streetName,
+        streetNumber: updateCustomerDto.street_number ?? customer.streetNumber,
+        city: updateCustomerDto.city ?? customer.city,
+        state: updateCustomerDto.state ?? customer.state,
+        phone: updateCustomerDto.phone ?? customer.phone,
+      });
+
+      return updatedCustomer;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Erro ao atualizar cliente: ${error.message}`,
       );
     }
   }

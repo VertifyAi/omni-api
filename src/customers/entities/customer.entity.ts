@@ -35,6 +35,9 @@ export class Customer {
   @Column()
   phone: string;
 
+  @Column({ name: 'company_id' })
+  companyId: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

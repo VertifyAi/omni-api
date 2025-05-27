@@ -8,9 +8,12 @@ import {
   OneToMany,
   ManyToMany,
   JoinTable,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Team } from 'src/teams/entities/teams.entity';
 import { Exclude } from 'class-transformer';
+import { Company } from 'src/companies/entities/company.entity';
 export enum UserRole {
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
@@ -71,4 +74,8 @@ export class User {
   @ManyToMany(() => Team, (team) => team.members)
   @JoinTable()
   teams: Team[];
+
+  @ManyToOne(() => Company, (company) => company.users)
+  @JoinColumn({ name: 'company_id' })
+  company: Company;
 }

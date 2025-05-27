@@ -1,13 +1,22 @@
-import { IsString, IsOptional, IsEmail, IsNumber } from 'class-validator';
+import { IsString, IsEmail, IsNumber, IsOptional } from 'class-validator';
+import { UserRole } from '../entities/user.entity';
 
-export class CreateCustomerDto {
+export class UpdateUserDto {
   @IsString()
   @IsOptional()
   name: string;
 
   @IsEmail()
-  @IsOptional() 
-  email: string
+  @IsOptional()
+  email: string;
+
+  @IsString()
+  @IsOptional()
+  password: string;
+
+  @IsString()
+  @IsOptional()
+  role: UserRole
 
   @IsString()
   @IsOptional()
@@ -31,5 +40,5 @@ export class CreateCustomerDto {
 
   @IsNumber()
   @IsOptional()
-  companyId?: number
+  areaId: number;
 }

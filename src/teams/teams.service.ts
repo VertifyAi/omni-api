@@ -157,4 +157,12 @@ export class TeamsService {
 
     return team;
   }
+
+  async findOneByName(name: string) {
+    const team = await this.teamsRepository.findOneBy({ name });
+    if (!team) {
+      throw new NotFoundException('Time não encontrado');
+    }
+    return team;
+  }
 }
