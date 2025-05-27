@@ -33,6 +33,7 @@ export class AuthService {
       phone: user.phone,
       areaId: user.areaId,
       companyId: user.companyId,
+      company: user.company,
     } as User;
     return {
       access_token: await this.jwtService.signAsync(payload),

@@ -10,6 +10,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Team } from 'src/teams/entities/teams.entity';
+import { User } from 'src/users/entities/user.entity';
 @Entity('companies')
 export class Company {
   @PrimaryGeneratedColumn()
@@ -53,4 +54,7 @@ export class Company {
 
   @OneToMany(() => Team, (team) => team.company)
   teams: Team[];
+
+  @OneToMany(() => User, (user) => user.company)
+  users: User[];
 }

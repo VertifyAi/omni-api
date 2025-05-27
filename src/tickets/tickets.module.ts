@@ -18,6 +18,7 @@ import { User } from 'src/users/entities/user.entity';
 import { VeraiModule } from 'src/verai/verai.module';
 import { VeraiService } from 'src/verai/verai.service';
 import { UtilsModule } from 'src/utils/utils.module';
+import { TeamsModule } from 'src/teams/teams.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ticket, TicketMessage, Company, User]),
@@ -30,6 +31,7 @@ import { UtilsModule } from 'src/utils/utils.module';
     UsersModule,
     VeraiModule,
     UtilsModule,
+    TeamsModule,
   ],
   controllers: [TicketsController],
   providers: [

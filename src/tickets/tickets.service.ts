@@ -21,6 +21,7 @@ import { UsersService } from 'src/users/users.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { VeraiService } from 'src/verai/verai.service';
 import { Team } from 'src/teams/entities/teams.entity';
+import { TeamsService } from 'src/teams/teams.service';
 // import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
 
 interface MessageBuffer {
@@ -55,10 +56,11 @@ export class TicketsService {
     private readonly httpService: HttpService,
     private readonly chatGateway: ChatGateway,
     private readonly veraiService: VeraiService,
+    private readonly teamsService: TeamsService,
   ) {}
 
   private async processBufferedMessages(bufferKey: string) {
-    console.log("processBufferedMessages", bufferKey);
+    console.log('processBufferedMessages', bufferKey);
     const buffer = this.messageBuffers.get(bufferKey);
     if (!buffer) return;
     this.messageBuffers.delete(bufferKey);
@@ -140,14 +142,17 @@ export class TicketsService {
     const agent = await this.agentsService.findOneAgentByWhatsappNumber(
       createTicketMessageDto.entry[0].changes[0].value.metadata
         .display_phone_number,
+      company.id,
     );
 
     if (!agent) {
       throw new NotFoundException('Agent not found');
     }
 
+    console.log('antes de buscar o customer');
     let customer = await this.customersService.findOneByPhone(
       createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
+      company.id,
     );
 
     let newCustomer = false;
@@ -157,14 +162,14 @@ export class TicketsService {
           createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
         name: createTicketMessageDto.entry[0].changes[0].value.contacts[0]
           .profile.name,
+        companyId: company.id,
       } as CreateCustomerDto);
       newCustomer = true;
     }
 
-    const message = createTicketMessageDto.entry[0].changes[0].value.messages[0].text.body;
+    const message =
+      createTicketMessageDto.entry[0].changes[0].value.messages[0].text.body;
     const bufferKey = `${customer.id}-${company.id}`;
-
-    console.log("company", company);
 
     // Se já existe um buffer para este cliente/empresa
     if (this.messageBuffers.has(bufferKey)) {
@@ -187,9 +192,13 @@ export class TicketsService {
         agentId: agent.id,
         agentConfig: agent.config,
         agentSystemMessage: agent.systemMessage,
-        channel: createTicketMessageDto.entry[0].changes[0].value.messaging_product,
-        customerName: createTicketMessageDto.entry[0].changes[0].value.contacts[0].profile.name,
-        customerPhone: createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
+        channel:
+          createTicketMessageDto.entry[0].changes[0].value.messaging_product,
+        customerName:
+          createTicketMessageDto.entry[0].changes[0].value.contacts[0].profile
+            .name,
+        customerPhone:
+          createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
         newCustomer,
         teams: company.teams,
       };
@@ -202,7 +211,11 @@ export class TicketsService {
       where: {
         companyId,
       },
-      relations: ['company', 'customer', 'ticketMessages'],
+      relations: {
+        company: true,
+        customer: true,
+        ticketMessages: true,
+      },
       order: {
         createdAt: 'DESC',
       },
@@ -216,8 +229,10 @@ export class TicketsService {
       where: {
         id: createAITicketMessage.ticketId,
       },
-      relations: ['agent', 'customer'],
+      relations: ['agent', 'customer', 'company'],
     });
+
+    console.log('ticket', ticket);
 
     if (!ticket) {
       throw new NotFoundException('Ticket not found');
@@ -288,7 +303,10 @@ export class TicketsService {
       throw new NotFoundException('Ticket not found');
     }
 
-    const user = await this.usersService.findOneById(currentUser.id);
+    const user = await this.usersService.findOneById(
+      currentUser.id,
+      currentUser.companyId,
+    );
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -396,5 +414,36 @@ export class TicketsService {
     this.chatGateway.emitNewMessage(ticketMessage);
 
     return ticketMessage;
+  }
+
+  async changeTicketStatusByAgent(
+    changeTicketStatusDto: ChangeTicketStatusDto,
+    ticketId: number,
+  ): Promise<Ticket> {
+    const ticket = await this.ticketRepository.findOne({
+      where: {
+        id: ticketId,
+        companyId: changeTicketStatusDto.companyId,
+      },
+      relations: ['customer', 'agent'],
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    const team = await this.teamsService.findOneByName(
+      changeTicketStatusDto.teamName,
+    );
+
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    return await this.ticketRepository.save({
+      ...ticket,
+      status: changeTicketStatusDto.status,
+      teamId: team.id,
+    });
   }
 }

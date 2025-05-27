@@ -1,8 +1,20 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 import { TicketStatus } from '../entities/ticket.entity';
 
 export class ChangeTicketStatusDto {
   @IsString()
   @IsNotEmpty()
   status: TicketStatus;
+
+  @IsString()
+  @IsNotEmpty()
+  teamName: string;
+
+  @IsString()
+  @IsOptional()
+  userId: string;
+
+  @IsNumber()
+  @IsOptional()
+  companyId: number;
 }

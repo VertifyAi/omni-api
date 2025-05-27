@@ -13,7 +13,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { UsersModule } from 'src/users/users.module';
 import { User } from 'src/users/entities/user.entity';
 import { VeraiModule } from 'src/verai/verai.module';
-
+import { TeamsModule } from 'src/teams/teams.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ticket, TicketMessage, User]),
@@ -24,6 +24,7 @@ import { VeraiModule } from 'src/verai/verai.module';
     JwtModule,
     UsersModule,
     VeraiModule,
+    TeamsModule,
   ],
   controllers: [WebhookController],
   providers: [TicketsService, ChatGateway],
