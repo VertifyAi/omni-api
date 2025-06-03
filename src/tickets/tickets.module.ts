@@ -19,11 +19,11 @@ import { VeraiModule } from 'src/verai/verai.module';
 import { VeraiService } from 'src/verai/verai.service';
 import { UtilsModule } from 'src/utils/utils.module';
 import { TeamsModule } from 'src/teams/teams.module';
+import { IntegrationsModule } from 'src/integrations/integrations.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ticket, TicketMessage, Company, User]),
     CustomersModule,
-    TicketsModule,
     HttpModule,
     JwtModule,
     ConfigModule,
@@ -32,6 +32,7 @@ import { TeamsModule } from 'src/teams/teams.module';
     VeraiModule,
     UtilsModule,
     TeamsModule,
+    IntegrationsModule,
   ],
   controllers: [TicketsController],
   providers: [

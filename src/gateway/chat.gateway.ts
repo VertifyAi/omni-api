@@ -7,6 +7,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { TicketMessage } from 'src/tickets/entities/ticket-message.entity';
+import { Ticket } from 'src/tickets/entities/ticket.entity';
 
 @WebSocketGateway({
   cors: {
@@ -34,7 +35,7 @@ export class ChatGateway
     this.server.emit('new_message', message);
   }
 
-  emitNewTicket(ticketId: number) {
-    this.server.emit('new_ticket', ticketId);
+  emitNewTicket(ticket: Ticket) {
+    this.server.emit('new_ticket', ticket);
   }
 }

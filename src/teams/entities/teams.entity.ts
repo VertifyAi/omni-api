@@ -24,18 +24,21 @@ export class Team {
   @Column()
   description: string;
 
+  @Column({ name: 'image_url', nullable: true })
+  imageUrl: string;
+
   @Column({ name: 'company_id' })
   companyId: number;
 
   @Column({ name: 'owner_id' })
   ownerId: number;
-  
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-  
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-  
+
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt: Date;
 

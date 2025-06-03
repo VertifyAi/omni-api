@@ -14,10 +14,14 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { VeraiModule } from './verai/verai.module';
 import { TeamsModule } from './teams/teams.module';
 import { UtilsModule } from './utils/utils.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.development', '.env'],
+    }),
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: process.env.DB_HOST,
@@ -39,6 +43,7 @@ import { UtilsModule } from './utils/utils.module';
     VeraiModule,
     TeamsModule,
     UtilsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

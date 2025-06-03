@@ -31,6 +31,9 @@ export class Agent {
   @Column({ name: 'system_message' })
   systemMessage: string;
 
+  @Column({ name: 'llm_assistant_id' })
+  llmAssistantId: string;
+
   @Column({ name: 'company_id' })
   companyId: number;
 
