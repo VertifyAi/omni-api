@@ -7,6 +7,8 @@ import { User } from 'src/users/entities/user.entity';
 import { UsersAreas } from './entities/users_areas.entity';
 import { In } from 'typeorm';
 import { UpdateTeamDto } from './dto/update-team.dto';
+import { S3Service } from 'src/integrations/aws/s3.service';
+import { UploadFileDto } from './dto/upload-image.dto';
 
 @Injectable()
 export class TeamsService {
@@ -17,6 +19,7 @@ export class TeamsService {
     private usersRepository: Repository<User>,
     @InjectRepository(UsersAreas)
     private usersAreasRepository: Repository<UsersAreas>,
+    private readonly s3Service: S3Service,
   ) {}
 
   async create(createTeamDto: CreateTeamDto, companyId: number): Promise<Team> {
@@ -158,11 +161,32 @@ export class TeamsService {
     return team;
   }
 
-  async findOneByName(name: string) {
-    const team = await this.teamsRepository.findOneBy({ name });
+  async findOneByName(name: string, companyId: number) {
+    const team = await this.teamsRepository.findOneBy({ name, companyId });
     if (!team) {
       throw new NotFoundException('Time não encontrado');
     }
+    return team;
+  }
+
+  async removeTeamById(id: number) {
+    const team = await this.teamsRepository.findOneBy({ id });
+    if (!team) {
+      throw new NotFoundException('Time não encontrado');
+    }
+    await this.teamsRepository.delete(id);
+    return team;
+  }
+
+  async uploadImage(id: number, file: UploadFileDto) {
+    const team = await this.teamsRepository.findOneBy({ id });
+    if (!team) {
+      throw new NotFoundException('Time não encontrado');
+    }
+    
+    const imageUrl = await this.s3Service.uploadFile(file);
+    team.imageUrl = imageUrl;
+    await this.teamsRepository.save(team);
     return team;
   }
 }

@@ -7,10 +7,6 @@ export class ChangeTicketStatusDto {
   status: TicketStatus;
 
   @IsString()
-  @IsNotEmpty()
-  teamName: string;
-
-  @IsString()
   @IsOptional()
   userId: string;
 

@@ -1,7 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Ticket, TicketStatus } from './entities/ticket.entity';
+import { Between, Repository, In, FindOptionsWhere } from 'typeorm';
+import {
+  Ticket,
+  TicketPriorityLevel,
+  TicketStatus,
+} from './entities/ticket.entity';
 import {
   TicketMessage,
   TicketMessageSender,
@@ -16,12 +20,16 @@ import { CreateAITicketMessageDto } from './dto/create-ai-ticket-message.dto';
 import { AgentsService } from 'src/agents/agents.service';
 import { ChatGateway } from 'src/gateway/chat.gateway';
 import { ChangeTicketStatusDto } from './dto/change-ticket-status.dto';
-import { User } from 'src/users/entities/user.entity';
+import { User, UserRole } from 'src/users/entities/user.entity';
 import { UsersService } from 'src/users/users.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { VeraiService } from 'src/verai/verai.service';
 import { Team } from 'src/teams/entities/teams.entity';
 import { TeamsService } from 'src/teams/teams.service';
+import { OpenAIService } from 'src/integrations/openai/openai.service';
+import { OpenAIChatMessage } from 'src/utils/types/openai.types';
+import { GetAnalyticsDto } from 'src/analytics/dto/get-analytics.dto';
+import { Customer } from 'src/customers/entities/customer.entity';
 // import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
 
 interface MessageBuffer {
@@ -37,6 +45,9 @@ interface MessageBuffer {
   agentConfig: string;
   agentSystemMessage: string;
   teams: Team[];
+  agentName: string;
+  agentLlmAssistantId: string;
+  customer: Customer;
 }
 
 @Injectable()
@@ -57,10 +68,10 @@ export class TicketsService {
     private readonly chatGateway: ChatGateway,
     private readonly veraiService: VeraiService,
     private readonly teamsService: TeamsService,
+    private readonly llmService: OpenAIService,
   ) {}
 
   private async processBufferedMessages(bufferKey: string) {
-    console.log('processBufferedMessages', bufferKey);
     const buffer = this.messageBuffers.get(bufferKey);
     if (!buffer) return;
     this.messageBuffers.delete(bufferKey);
@@ -70,6 +81,7 @@ export class TicketsService {
     });
 
     let newTicket = false;
+    const messagesArray: OpenAIChatMessage[] = [];
     if (!ticket) {
       ticket = this.ticketRepository.create({
         status: TicketStatus.AI,
@@ -78,52 +90,92 @@ export class TicketsService {
         agentId: buffer.agentId,
         channel: buffer.channel,
       });
+      buffer.messages.forEach((message) => {
+        messagesArray.push({
+          role: 'user',
+          content: message,
+        });
+      });
+      const llmThread = await this.llmService.createThreads(messagesArray, {
+        companyId: String(buffer.companyId),
+      });
+      ticket.llmThreadId = llmThread.id;
       await this.ticketRepository.save(ticket);
-      this.chatGateway.emitNewTicket(ticket.id);
       newTicket = true;
     }
 
-    // Processa cada mensagem individualmente
+    const ticketMessages: TicketMessage[] = [];
     for (const message of buffer.messages) {
-      const ticketMessage = this.ticketMessageRepository.create({
-        phone: buffer.customerPhone,
-        message: message,
-        senderName: buffer.customerName,
-        ticketId: ticket.id,
-        sender: TicketMessageSender.CUSTOMER,
-      });
-      await this.ticketMessageRepository.save(ticketMessage);
-      this.chatGateway.emitNewMessage(ticketMessage);
+      ticketMessages.push(
+        await this.createNewMessage(
+          buffer.customerPhone,
+          ticket.id,
+          message,
+          TicketMessageSender.CUSTOMER,
+          buffer.customerName,
+        ),
+      );
     }
 
-    try {
-      if (ticket.status === TicketStatus.AI) {
-        // Envia a última mensagem para o webhook
-        const lastMessage = buffer.messages[buffer.messages.length - 1];
-        await lastValueFrom(
-          this.httpService.post(
-            'https://n8n.vertify.com.br/webhook/7e33648b-9146-466f-ae26-cd8959fc729e',
-            {
-              phone: buffer.customerPhone,
-              message: lastMessage,
-              senderName: buffer.customerName,
-              ticketId: ticket.id,
-              sender: TicketMessageSender.CUSTOMER,
-              type: 'text',
-              companyId: buffer.companyId,
-              agentId: buffer.agentId,
-              newTicket,
-              newCustomer: buffer.newCustomer,
-              state: ticket.state || {},
-              agentConfig: buffer.agentConfig,
-              agentSystemMessage: buffer.agentSystemMessage,
-              teams: buffer.teams,
-            },
-          ),
-        );
+    if (newTicket) {
+      this.chatGateway.emitNewTicket({
+        ...ticket,
+        ticketMessages,
+        customer: buffer.customer,
+      });
+    }
+
+    if (ticket.status === TicketStatus.AI) {
+      let concatenatedMessages = '';
+      buffer.messages.forEach(async (message) => {
+        concatenatedMessages += message + '\n';
+      });
+
+      await this.llmService.createMessage(ticket.llmThreadId, {
+        role: 'user',
+        content: concatenatedMessages,
+      });
+
+      const llmAgentMessage = await this.llmService.createAndStreamRun(
+        ticket.llmThreadId,
+        buffer.agentLlmAssistantId,
+      );
+
+      if (
+        typeof llmAgentMessage === 'object' &&
+        llmAgentMessage !== null &&
+        'action' in llmAgentMessage
+      ) {
+        switch (llmAgentMessage.action) {
+          case 'request_human_assistance':
+            const llmAgentMessageWithEnum = {
+              ...llmAgentMessage,
+              priority_level:
+                llmAgentMessage.priority_level === 'low'
+                  ? TicketPriorityLevel.LOW
+                  : llmAgentMessage.priority_level === 'medium'
+                    ? TicketPriorityLevel.MEDIUM
+                    : llmAgentMessage.priority_level === 'high'
+                      ? TicketPriorityLevel.HIGH
+                      : TicketPriorityLevel.CRITICAL,
+            };
+            await this.requestHumanAssistance(
+              ticket.id,
+              llmAgentMessageWithEnum,
+            );
+            break;
+          default:
+            break;
+        }
+      } else {
+        const jsonMessage = JSON.parse(llmAgentMessage as string);
+        for (const message of jsonMessage.messages) {
+          await this.createAITicketMessage({
+            content: message.content,
+            ticketId: ticket.id,
+          });
+        }
       }
-    } catch (error) {
-      console.error('Erro ao enviar webhook:', error);
     }
   }
 
@@ -149,7 +201,6 @@ export class TicketsService {
       throw new NotFoundException('Agent not found');
     }
 
-    console.log('antes de buscar o customer');
     let customer = await this.customersService.findOneByPhone(
       createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
       company.id,
@@ -188,10 +239,13 @@ export class TicketsService {
           this.processBufferedMessages(bufferKey);
         }, this.BUFFER_TIMEOUT),
         customerId: customer.id,
+        customer: customer,
         companyId: company.id,
         agentId: agent.id,
         agentConfig: agent.config,
         agentSystemMessage: agent.systemMessage,
+        agentName: agent.name,
+        agentLlmAssistantId: agent.llmAssistantId,
         channel:
           createTicketMessageDto.entry[0].changes[0].value.messaging_product,
         customerName:
@@ -206,11 +260,26 @@ export class TicketsService {
     }
   }
 
-  async findAllTickets(companyId: number): Promise<Ticket[]> {
+  async findAllTickets(currentUser: User): Promise<Ticket[]> {
+    let where: FindOptionsWhere<Ticket> = {
+      companyId: currentUser.companyId,
+    };
+
+    if (currentUser.role === UserRole.USER) {
+      where = {
+        ...where,
+        userId: In([currentUser.id || 0, 0]),
+        areaId: currentUser.areaId,
+      };
+    } else if (currentUser.role === UserRole.MANAGER) {
+      where = {
+        ...where,
+        areaId: currentUser.areaId,
+      };
+    }
+
     return await this.ticketRepository.find({
-      where: {
-        companyId,
-      },
+      where,
       relations: {
         company: true,
         customer: true,
@@ -231,8 +300,6 @@ export class TicketsService {
       },
       relations: ['agent', 'customer', 'company'],
     });
-
-    console.log('ticket', ticket);
 
     if (!ticket) {
       throw new NotFoundException('Ticket not found');
@@ -303,16 +370,7 @@ export class TicketsService {
       throw new NotFoundException('Ticket not found');
     }
 
-    const user = await this.usersService.findOneById(
-      currentUser.id,
-      currentUser.companyId,
-    );
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const messageContent = `A partir deste momento, nosso agente humano ${user.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
+    const messageContent = `A partir deste momento, nosso agente humano ${currentUser.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
 
     const whatsappPayload = {
       messaging_product: 'whatsapp',
@@ -363,10 +421,11 @@ export class TicketsService {
   async sendMessage(
     ticketId: number,
     sendMessageDto: SendMessageDto,
+    currentUser: User,
   ): Promise<TicketMessage> {
     const ticket = await this.ticketRepository.findOne({
       where: { id: ticketId },
-      relations: ['customer'],
+      relations: ['customer', 'agent'],
     });
 
     if (!ticket) {
@@ -374,9 +433,9 @@ export class TicketsService {
     }
 
     const ticketMessage = this.ticketMessageRepository.create({
-      phone: sendMessageDto.phone,
+      phone: ticket.agent.whatsappNumber,
       message: sendMessageDto.message,
-      senderName: sendMessageDto.name,
+      senderName: currentUser.name,
       ticketId,
       sender: TicketMessageSender.USER,
     });
@@ -386,7 +445,7 @@ export class TicketsService {
       to: ticket.customer.phone,
       type: 'text',
       text: {
-        body: sendMessageDto.message,
+        body: `*${currentUser.name}*\n\n${sendMessageDto.message}`,
       },
     };
     try {
@@ -416,15 +475,64 @@ export class TicketsService {
     return ticketMessage;
   }
 
-  async changeTicketStatusByAgent(
-    changeTicketStatusDto: ChangeTicketStatusDto,
-    ticketId: number,
-  ): Promise<Ticket> {
-    const ticket = await this.ticketRepository.findOne({
-      where: {
-        id: ticketId,
-        companyId: changeTicketStatusDto.companyId,
+  async getTicketsAnalytics(
+    getAnalyticsDto: GetAnalyticsDto,
+    companyId: number,
+  ) {
+    const where = {
+      companyId,
+      createdAt: Between(
+        new Date(getAnalyticsDto.startDate),
+        new Date(getAnalyticsDto.endDate),
+      ),
+    };
+
+    if (getAnalyticsDto.teamId) {
+      where['teamId'] = getAnalyticsDto.teamId;
+    }
+
+    if (getAnalyticsDto.userId) {
+      where['userId'] = getAnalyticsDto.userId;
+    }
+
+    return await this.ticketRepository.find({
+      where,
+      relations: {
+        company: true,
+        customer: true,
+        ticketMessages: true,
       },
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+  }
+
+  private async createNewMessage(
+    phone: string,
+    ticketId: number,
+    message: string,
+    sender: TicketMessageSender,
+    senderName: string,
+  ) {
+    const ticketMessage = this.ticketMessageRepository.create({
+      phone,
+      message,
+      ticketId,
+      senderName,
+      sender,
+    });
+    await this.ticketMessageRepository.save(ticketMessage);
+    this.chatGateway.emitNewMessage(ticketMessage);
+    return ticketMessage;
+  }
+
+  private async requestHumanAssistance(
+    ticketId: number,
+    args: { priority_level: TicketPriorityLevel; target_team: string },
+  ) {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId },
       relations: ['customer', 'agent'],
     });
 
@@ -433,7 +541,8 @@ export class TicketsService {
     }
 
     const team = await this.teamsService.findOneByName(
-      changeTicketStatusDto.teamName,
+      args.target_team,
+      ticket.companyId,
     );
 
     if (!team) {
@@ -442,8 +551,9 @@ export class TicketsService {
 
     return await this.ticketRepository.save({
       ...ticket,
-      status: changeTicketStatusDto.status,
-      teamId: team.id,
+      status: TicketStatus.IN_PROGRESS,
+      areaId: team.id,
+      priorityLevel: args.priority_level,
     });
   }
 }

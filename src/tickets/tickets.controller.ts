@@ -43,8 +43,13 @@ export class TicketsController {
   async sendMessage(
     @Param('ticketId') ticketId: number,
     @Body() sendMessageDto: SendMessageDto,
+    @Request() req,
   ) {
-    return await this.ticketsService.sendMessage(ticketId, sendMessageDto);
+    return await this.ticketsService.sendMessage(
+      ticketId,
+      sendMessageDto,
+      req.user,
+    );
   }
 
   @UseGuards(AuthGuard)
@@ -57,17 +62,6 @@ export class TicketsController {
     return await this.ticketsService.changeTicketStatus(
       changeTicketStatusDto,
       req.user,
-      ticketId,
-    );
-  }
-
-  @Post('status-by-agent/:id')
-  async changeTicketStatusByAgent(
-    @Body() changeTicketStatusDto: ChangeTicketStatusDto,
-    @Param(':id') ticketId: number,
-  ) {
-    return await this.ticketsService.changeTicketStatusByAgent(
-      changeTicketStatusDto,
       ticketId,
     );
   }

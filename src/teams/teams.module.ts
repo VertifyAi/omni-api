@@ -7,6 +7,7 @@ import { User } from 'src/users/entities/user.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 import { UsersAreas } from './entities/users_areas.entity';
+import { S3Service } from 'src/integrations/aws/s3.service';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { UsersAreas } from './entities/users_areas.entity';
     JwtModule,
     ConfigModule,
   ],
-  providers: [TeamsService],
+  providers: [TeamsService, S3Service],
   controllers: [TeamsController],
   exports: [TeamsService],
 })

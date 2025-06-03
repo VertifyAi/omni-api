@@ -14,6 +14,7 @@ import { UsersModule } from 'src/users/users.module';
 import { User } from 'src/users/entities/user.entity';
 import { VeraiModule } from 'src/verai/verai.module';
 import { TeamsModule } from 'src/teams/teams.module';
+import { IntegrationsModule } from 'src/integrations/integrations.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ticket, TicketMessage, User]),
@@ -25,6 +26,7 @@ import { TeamsModule } from 'src/teams/teams.module';
     UsersModule,
     VeraiModule,
     TeamsModule,
+    IntegrationsModule
   ],
   controllers: [WebhookController],
   providers: [TicketsService, ChatGateway],
