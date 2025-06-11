@@ -183,10 +183,14 @@ export class TeamsService {
     if (!team) {
       throw new NotFoundException('Time não encontrado');
     }
-    
+
     const imageUrl = await this.s3Service.uploadFile(file);
     team.imageUrl = imageUrl;
     await this.teamsRepository.save(team);
     return team;
+  }
+
+  async findByIds(ids: number[], companyId: number): Promise<Team[]> {
+    return await this.teamsRepository.findBy({ id: In(ids), companyId });
   }
 }

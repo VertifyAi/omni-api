@@ -5,9 +5,11 @@ import { AgentsController } from './agents.controller';
 import { Agent } from './entities/agent.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
+import { IntegrationsModule } from 'src/integrations/integrations.module';
+import { TeamsModule } from 'src/teams/teams.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Agent]), JwtModule, ConfigModule],
+  imports: [TypeOrmModule.forFeature([Agent]), JwtModule, ConfigModule, IntegrationsModule, TeamsModule],
   providers: [AgentsService],
   controllers: [AgentsController],
   exports: [AgentsService]

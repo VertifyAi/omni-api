@@ -8,9 +8,12 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  OneToOne,
 } from 'typeorm';
 import { Team } from 'src/teams/entities/teams.entity';
 import { User } from 'src/users/entities/user.entity';
+import { Subscription } from 'src/billing/entities/subscription.entity';
+
 @Entity('companies')
 export class Company {
   @PrimaryGeneratedColumn()
@@ -57,4 +60,7 @@ export class Company {
 
   @OneToMany(() => User, (user) => user.company)
   users: User[];
+
+  @OneToOne(() => Subscription, (subscription) => subscription.company)
+  subscription: Subscription;
 }

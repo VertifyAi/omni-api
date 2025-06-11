@@ -40,5 +40,5 @@ export class CreateUserDto {
 
   @IsNumber()
   @IsOptional()
-  areaId: number;
+  areaId?: number;
 }

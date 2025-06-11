@@ -37,16 +37,16 @@ interface MessageBuffer {
   timer: NodeJS.Timeout;
   customerId: number;
   companyId: number;
-  agentId: number;
+  // agentId: number;
   channel: string;
   customerName: string;
   customerPhone: string;
   newCustomer: boolean;
-  agentConfig: string;
-  agentSystemMessage: string;
+  // agentConfig: string;
+  // agentSystemMessage: string;
+  // agentName: string;
+  // agentLlmAssistantId: string;
   teams: Team[];
-  agentName: string;
-  agentLlmAssistantId: string;
   customer: Customer;
 }
 
@@ -87,7 +87,7 @@ export class TicketsService {
         status: TicketStatus.AI,
         customerId: buffer.customerId,
         companyId: buffer.companyId,
-        agentId: buffer.agentId,
+        // agentId: buffer.agentId,
         channel: buffer.channel,
       });
       buffer.messages.forEach((message) => {
@@ -138,7 +138,8 @@ export class TicketsService {
 
       const llmAgentMessage = await this.llmService.createAndStreamRun(
         ticket.llmThreadId,
-        buffer.agentLlmAssistantId,
+        // buffer.agentLlmAssistantId,
+        'gpt-4o-mini',
       );
 
       if (
@@ -191,15 +192,15 @@ export class TicketsService {
       throw new NotFoundException('Company not found');
     }
 
-    const agent = await this.agentsService.findOneAgentByWhatsappNumber(
-      createTicketMessageDto.entry[0].changes[0].value.metadata
-        .display_phone_number,
-      company.id,
-    );
+    // const agent = await this.agentsService.findOneAgentByWhatsappNumber(
+    //   createTicketMessageDto.entry[0].changes[0].value.metadata
+    //     .display_phone_number,
+    //   company.id,
+    // );
 
-    if (!agent) {
-      throw new NotFoundException('Agent not found');
-    }
+    // if (!agent) {
+    //   throw new NotFoundException('Agent not found');
+    // }
 
     let customer = await this.customersService.findOneByPhone(
       createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
@@ -241,11 +242,11 @@ export class TicketsService {
         customerId: customer.id,
         customer: customer,
         companyId: company.id,
-        agentId: agent.id,
-        agentConfig: agent.config,
-        agentSystemMessage: agent.systemMessage,
-        agentName: agent.name,
-        agentLlmAssistantId: agent.llmAssistantId,
+        // agentId: agent.id,
+        // agentConfig: agent.config,
+        // agentSystemMessage: agent.systemMessage,
+        // agentName: agent.name,
+        // agentLlmAssistantId: agent.llmAssistantId,
         channel:
           createTicketMessageDto.entry[0].changes[0].value.messaging_product,
         customerName:
@@ -329,7 +330,7 @@ export class TicketsService {
       );
 
       const ticketMessage = this.ticketMessageRepository.create({
-        phone: ticket.agent.whatsappNumber,
+        // phone: ticket.agent.whatsappNumber,
         message: createAITicketMessage.content,
         ticketId: createAITicketMessage.ticketId,
         senderName: ticket.agent.name,
@@ -396,7 +397,7 @@ export class TicketsService {
       );
 
       const ticketMessage = this.ticketMessageRepository.create({
-        phone: ticket.agent.whatsappNumber,
+        // phone: ticket.agent.whatsappNumber,
         message: messageContent,
         ticketId: ticket.id,
         senderName: ticket.agent.name,
@@ -433,7 +434,6 @@ export class TicketsService {
     }
 
     const ticketMessage = this.ticketMessageRepository.create({
-      phone: ticket.agent.whatsappNumber,
       message: sendMessageDto.message,
       senderName: currentUser.name,
       ticketId,

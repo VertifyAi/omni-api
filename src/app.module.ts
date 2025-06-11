@@ -15,6 +15,8 @@ import { VeraiModule } from './verai/verai.module';
 import { TeamsModule } from './teams/teams.module';
 import { UtilsModule } from './utils/utils.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { BillingModule } from './billing/billing.module';
+import { WorkflowsModule } from './workflows/workflows.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
     TeamsModule,
     UtilsModule,
     AnalyticsModule,
+    BillingModule,
+    WorkflowsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
