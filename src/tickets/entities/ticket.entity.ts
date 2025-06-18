@@ -53,17 +53,17 @@ export class Ticket {
   @Column({ name: 'llm_thread_id', nullable: true })
   llmThreadId: string;
 
-  @Column({ name: 'user_id' })
+  @Column({ name: 'user_id', nullable: true })
   userId: number;
 
-  @Column({ name: 'agent_id' })
+  @Column({ name: 'agent_id', nullable: true })
   agentId: number;
+
+  @Column({ name: 'area_id', nullable: true })
+  areaId: number;
 
   @Column({ name: 'customer_id' })
   customerId: number;
-
-  @Column({ name: 'area_id' })
-  areaId: number;
 
   @Column({ name: 'company_id' })
   companyId: number;

@@ -24,12 +24,13 @@ import { User, UserRole } from 'src/users/entities/user.entity';
 import { UsersService } from 'src/users/users.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { VeraiService } from 'src/verai/verai.service';
-import { Team } from 'src/teams/entities/teams.entity';
 import { TeamsService } from 'src/teams/teams.service';
 import { OpenAIService } from 'src/integrations/openai/openai.service';
 import { OpenAIChatMessage } from 'src/utils/types/openai.types';
 import { GetAnalyticsDto } from 'src/analytics/dto/get-analytics.dto';
 import { Customer } from 'src/customers/entities/customer.entity';
+import { WorkflowsService } from 'src/workflows/workflows.service';
+import { Workflow } from 'src/workflows/entities/workflow.entity';
 // import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
 
 interface MessageBuffer {
@@ -37,17 +38,13 @@ interface MessageBuffer {
   timer: NodeJS.Timeout;
   customerId: number;
   companyId: number;
-  // agentId: number;
   channel: string;
   customerName: string;
   customerPhone: string;
   newCustomer: boolean;
-  // agentConfig: string;
-  // agentSystemMessage: string;
-  // agentName: string;
-  // agentLlmAssistantId: string;
-  teams: Team[];
   customer: Customer;
+  workflow: Workflow;
+  senderIdentifier: string;
 }
 
 @Injectable()
@@ -69,159 +66,40 @@ export class TicketsService {
     private readonly veraiService: VeraiService,
     private readonly teamsService: TeamsService,
     private readonly llmService: OpenAIService,
+    private readonly workflowsService: WorkflowsService,
   ) {}
-
-  private async processBufferedMessages(bufferKey: string) {
-    const buffer = this.messageBuffers.get(bufferKey);
-    if (!buffer) return;
-    this.messageBuffers.delete(bufferKey);
-
-    let ticket = await this.ticketRepository.findOneBy({
-      customerId: buffer.customerId,
-    });
-
-    let newTicket = false;
-    const messagesArray: OpenAIChatMessage[] = [];
-    if (!ticket) {
-      ticket = this.ticketRepository.create({
-        status: TicketStatus.AI,
-        customerId: buffer.customerId,
-        companyId: buffer.companyId,
-        // agentId: buffer.agentId,
-        channel: buffer.channel,
-      });
-      buffer.messages.forEach((message) => {
-        messagesArray.push({
-          role: 'user',
-          content: message,
-        });
-      });
-      const llmThread = await this.llmService.createThreads(messagesArray, {
-        companyId: String(buffer.companyId),
-      });
-      ticket.llmThreadId = llmThread.id;
-      await this.ticketRepository.save(ticket);
-      newTicket = true;
-    }
-
-    const ticketMessages: TicketMessage[] = [];
-    for (const message of buffer.messages) {
-      ticketMessages.push(
-        await this.createNewMessage(
-          buffer.customerPhone,
-          ticket.id,
-          message,
-          TicketMessageSender.CUSTOMER,
-          buffer.customerName,
-        ),
-      );
-    }
-
-    if (newTicket) {
-      this.chatGateway.emitNewTicket({
-        ...ticket,
-        ticketMessages,
-        customer: buffer.customer,
-      });
-    }
-
-    if (ticket.status === TicketStatus.AI) {
-      let concatenatedMessages = '';
-      buffer.messages.forEach(async (message) => {
-        concatenatedMessages += message + '\n';
-      });
-
-      await this.llmService.createMessage(ticket.llmThreadId, {
-        role: 'user',
-        content: concatenatedMessages,
-      });
-
-      const llmAgentMessage = await this.llmService.createAndStreamRun(
-        ticket.llmThreadId,
-        // buffer.agentLlmAssistantId,
-        'gpt-4o-mini',
-      );
-
-      if (
-        typeof llmAgentMessage === 'object' &&
-        llmAgentMessage !== null &&
-        'action' in llmAgentMessage
-      ) {
-        switch (llmAgentMessage.action) {
-          case 'request_human_assistance':
-            const llmAgentMessageWithEnum = {
-              ...llmAgentMessage,
-              priority_level:
-                llmAgentMessage.priority_level === 'low'
-                  ? TicketPriorityLevel.LOW
-                  : llmAgentMessage.priority_level === 'medium'
-                    ? TicketPriorityLevel.MEDIUM
-                    : llmAgentMessage.priority_level === 'high'
-                      ? TicketPriorityLevel.HIGH
-                      : TicketPriorityLevel.CRITICAL,
-            };
-            await this.requestHumanAssistance(
-              ticket.id,
-              llmAgentMessageWithEnum,
-            );
-            break;
-          default:
-            break;
-        }
-      } else {
-        const jsonMessage = JSON.parse(llmAgentMessage as string);
-        for (const message of jsonMessage.messages) {
-          await this.createAITicketMessage({
-            content: message.content,
-            ticketId: ticket.id,
-          });
-        }
-      }
-    }
-  }
 
   async handleIncomingMessage(
     createTicketMessageDto: WhatsappWebhookDto,
   ): Promise<void> {
-    const company = await this.companiesService.findCompanyByPhone(
-      createTicketMessageDto.entry[0].changes[0].value.metadata
-        .display_phone_number,
-    );
+    const workflow =
+      await this.workflowsService.findOneWorkflowByChannelIdentifier(
+        createTicketMessageDto.entry[0].changes[0].value.metadata
+          .display_phone_number,
+      );
 
-    if (!company) {
-      throw new NotFoundException('Company not found');
+    if (!workflow) {
+      throw new NotFoundException('Workflow not found');
     }
-
-    // const agent = await this.agentsService.findOneAgentByWhatsappNumber(
-    //   createTicketMessageDto.entry[0].changes[0].value.metadata
-    //     .display_phone_number,
-    //   company.id,
-    // );
-
-    // if (!agent) {
-    //   throw new NotFoundException('Agent not found');
-    // }
 
     let customer = await this.customersService.findOneByPhone(
       createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
-      company.id,
+      workflow.companyId,
     );
 
-    let newCustomer = false;
     if (!customer) {
       customer = await this.customersService.create({
         phone:
           createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
         name: createTicketMessageDto.entry[0].changes[0].value.contacts[0]
           .profile.name,
-        companyId: company.id,
+        companyId: workflow.companyId,
       } as CreateCustomerDto);
-      newCustomer = true;
     }
 
     const message =
       createTicketMessageDto.entry[0].changes[0].value.messages[0].text.body;
-    const bufferKey = `${customer.id}-${company.id}`;
+    const bufferKey = `${customer.id}-${workflow.companyId}`;
 
     // Se já existe um buffer para este cliente/empresa
     if (this.messageBuffers.has(bufferKey)) {
@@ -241,12 +119,11 @@ export class TicketsService {
         }, this.BUFFER_TIMEOUT),
         customerId: customer.id,
         customer: customer,
-        companyId: company.id,
-        // agentId: agent.id,
-        // agentConfig: agent.config,
-        // agentSystemMessage: agent.systemMessage,
-        // agentName: agent.name,
-        // agentLlmAssistantId: agent.llmAssistantId,
+        companyId: workflow.companyId,
+        workflow: workflow,
+        senderIdentifier:
+          createTicketMessageDto.entry[0].changes[0].value.metadata
+            .display_phone_number,
         channel:
           createTicketMessageDto.entry[0].changes[0].value.messaging_product,
         customerName:
@@ -254,8 +131,7 @@ export class TicketsService {
             .name,
         customerPhone:
           createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
-        newCustomer,
-        teams: company.teams,
+        newCustomer: false,
       };
       this.messageBuffers.set(bufferKey, buffer);
     }
@@ -330,11 +206,11 @@ export class TicketsService {
       );
 
       const ticketMessage = this.ticketMessageRepository.create({
-        // phone: ticket.agent.whatsappNumber,
+        senderIdentifier: createAITicketMessage.senderIdentifier,
         message: createAITicketMessage.content,
         ticketId: createAITicketMessage.ticketId,
         senderName: ticket.agent.name,
-        sender: TicketMessageSender.AI,
+        senderType: TicketMessageSender.AI,
       });
       this.chatGateway.emitNewMessage(ticketMessage);
       await this.ticketMessageRepository.save(ticketMessage);
@@ -397,11 +273,10 @@ export class TicketsService {
       );
 
       const ticketMessage = this.ticketMessageRepository.create({
-        // phone: ticket.agent.whatsappNumber,
         message: messageContent,
         ticketId: ticket.id,
         senderName: ticket.agent.name,
-        sender: TicketMessageSender.AI,
+        senderType: TicketMessageSender.AI,
       });
       this.chatGateway.emitNewMessage(ticketMessage);
       await this.ticketMessageRepository.save(ticketMessage);
@@ -437,7 +312,8 @@ export class TicketsService {
       message: sendMessageDto.message,
       senderName: currentUser.name,
       ticketId,
-      sender: TicketMessageSender.USER,
+      senderType: TicketMessageSender.USER,
+      senderIdentifier: "OMNI",
     });
 
     const whatsappPayload = {
@@ -508,25 +384,38 @@ export class TicketsService {
     });
   }
 
+  /**
+   * Cria uma nova mensagem para um ticket
+   * @param senderIdentifier Identificador do remetente
+   * @param ticketId ID do ticket
+   * @param message Conteúdo da mensagem
+   * @param sender Tipo de remetente
+   * @param senderName Nome do remetente
+   */
   private async createNewMessage(
-    phone: string,
+    senderIdentifier: string,
     ticketId: number,
     message: string,
-    sender: TicketMessageSender,
+    senderType: TicketMessageSender,
     senderName: string,
   ) {
     const ticketMessage = this.ticketMessageRepository.create({
-      phone,
+      senderIdentifier,
       message,
       ticketId,
       senderName,
-      sender,
+      senderType,
     });
     await this.ticketMessageRepository.save(ticketMessage);
     this.chatGateway.emitNewMessage(ticketMessage);
     return ticketMessage;
   }
 
+  /**
+   * Solicita a assistência humana para um ticket
+   * @param ticketId ID do ticket
+   * @param args Prioridade e equipe alvo
+   */
   private async requestHumanAssistance(
     ticketId: number,
     args: { priority_level: TicketPriorityLevel; target_team: string },
@@ -549,11 +438,147 @@ export class TicketsService {
       throw new NotFoundException('Team not found');
     }
 
+    const messageContent = `A partir deste momento, nossa equipe ${team.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
+
+    await this.createNewMessage(
+      ticket.customer.phone,
+      ticket.id,
+      messageContent,
+      TicketMessageSender.AI,
+      'Omni AI',
+    );
+
     return await this.ticketRepository.save({
       ...ticket,
       status: TicketStatus.IN_PROGRESS,
       areaId: team.id,
       priorityLevel: args.priority_level,
     });
+  }
+
+  /**
+   * Cria um novo ticket com base no buffer de mensagens
+   * @param buffer Buffer de mensagens
+   * @returns Ticket criado
+   */
+  private async createNewTicket(buffer: MessageBuffer): Promise<Ticket> {
+    const messagesArray: OpenAIChatMessage[] = [];
+    const { workflowAgent, workflowTeam, workflowUser } = buffer.workflow;
+    const ticket: Ticket = this.ticketRepository.create({
+      status: workflowAgent?.id ? TicketStatus.AI : TicketStatus.IN_PROGRESS,
+      customerId: buffer.customerId,
+      companyId: buffer.companyId,
+      channel: buffer.channel,
+      areaId: workflowTeam?.id ? workflowTeam?.id : undefined,
+      userId: workflowUser?.id ? workflowUser?.id : undefined,
+      agentId: workflowAgent?.id ? workflowAgent?.id : undefined,
+    });
+    buffer.messages.forEach((message) => {
+      messagesArray.push({
+        role: 'user',
+        content: message,
+      });
+    });
+    const llmThread = await this.llmService.createThreads(messagesArray, {
+      companyId: String(buffer.companyId),
+    });
+    ticket.llmThreadId = llmThread.id;
+    await this.ticketRepository.save(ticket);
+    return ticket;
+  }
+
+  /**
+   * Processa as mensagens armazenadas no buffer
+   * @param bufferKey Chave do buffer
+   */
+  private async processBufferedMessages(bufferKey: string) {
+    const buffer = this.messageBuffers.get(bufferKey);
+    if (!buffer) return;
+    this.messageBuffers.delete(bufferKey);
+
+    let ticket: Ticket | null = await this.ticketRepository.findOneBy({
+      customerId: buffer.customerId,
+    });
+
+    let newTicket = false;
+    if (!ticket) {
+      ticket = await this.createNewTicket(buffer);
+      newTicket = true;
+    }
+
+    const ticketMessages: TicketMessage[] = [];
+    for (const message of buffer.messages) {
+      ticketMessages.push(
+        await this.createNewMessage(
+          buffer.customerPhone,
+          ticket.id,
+          message,
+          TicketMessageSender.CUSTOMER,
+          buffer.customerName,
+        ),
+      );
+    }
+
+    if (newTicket) {
+      this.chatGateway.emitNewTicket({
+        ...ticket,
+        ticketMessages,
+        customer: buffer.customer,
+      });
+    }
+
+    if (ticket.status === TicketStatus.AI) {
+      let concatenatedMessages = '';
+      buffer.messages.forEach(async (message) => {
+        concatenatedMessages += message + '\n';
+      });
+
+      await this.llmService.createMessage(ticket.llmThreadId, {
+        role: 'user',
+        content: concatenatedMessages,
+      });
+
+      const llmAgentMessage = await this.llmService.createAndStreamRun(
+        ticket.llmThreadId,
+        buffer.workflow.workflowAgent?.llmAssistantId || 'gpt-4o-mini',
+      );
+
+      if (
+        typeof llmAgentMessage === 'object' &&
+        llmAgentMessage !== null &&
+        'action' in llmAgentMessage
+      ) {
+        switch (llmAgentMessage.action) {
+          case 'request_human_assistance':
+            const llmAgentMessageWithEnum = {
+              ...llmAgentMessage,
+              priority_level:
+                llmAgentMessage.priority_level === 'low'
+                  ? TicketPriorityLevel.LOW
+                  : llmAgentMessage.priority_level === 'medium'
+                    ? TicketPriorityLevel.MEDIUM
+                    : llmAgentMessage.priority_level === 'high'
+                      ? TicketPriorityLevel.HIGH
+                      : TicketPriorityLevel.CRITICAL,
+            };
+            await this.requestHumanAssistance(
+              ticket.id,
+              llmAgentMessageWithEnum,
+            );
+            break;
+          default:
+            break;
+        }
+      } else {
+        const jsonMessage = JSON.parse(llmAgentMessage as string);
+        for (const message of jsonMessage.messages) {
+          await this.createAITicketMessage({
+            senderIdentifier: buffer.senderIdentifier,
+            content: message.content,
+            ticketId: ticket.id,
+          });
+        }
+      }
+    }
   }
 }

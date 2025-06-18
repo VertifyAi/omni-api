@@ -30,8 +30,8 @@ export class AuthService {
     const company = await this.companiesService.createCompany({
       name: signUpDto.company.name,
       email: signUpDto.email, // usando o email do usuário
-      streetName: signUpDto.company.address.street,
-      streetNumber: '', // não temos campo separado no payload
+      streetName: signUpDto.company.address.streetName,
+      streetNumber: signUpDto.company.address.streetNumber,
       city: signUpDto.company.address.city,
       state: signUpDto.company.address.state,
       phone: signUpDto.company.phone,
@@ -44,8 +44,8 @@ export class AuthService {
       email: signUpDto.email,
       password: signUpDto.password,
       role: UserRole.ADMIN,
-      street_name: signUpDto.address.street,
-      street_number: '', // não temos campo separado no payload
+      streetName: signUpDto.address.streetName,
+      streetNumber: signUpDto.address.streetNumber,
       city: signUpDto.address.city,
       state: signUpDto.address.state,
       phone: signUpDto.phone,

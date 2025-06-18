@@ -8,4 +8,8 @@ export class CreateAITicketMessageDto {
   @IsNumber()
   @IsNotEmpty()
   ticketId: number;
+
+  @IsString()
+  @IsNotEmpty()
+  senderIdentifier: string;
 }

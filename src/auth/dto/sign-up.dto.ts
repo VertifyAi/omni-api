@@ -4,7 +4,11 @@ import { Type } from 'class-transformer';
 export class AddressDto {
   @IsString()
   @IsNotEmpty()
-  street: string;
+  streetName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  streetNumber: string;
 
   @IsString()
   @IsNotEmpty()
@@ -16,7 +20,7 @@ export class AddressDto {
 
   @IsString()
   @IsNotEmpty()
-  zip_code: string;
+  zipCode: string;
 
   @IsString()
   @IsNotEmpty()

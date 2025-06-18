@@ -19,8 +19,8 @@ export class TicketMessage {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  phone: string;
+  @Column({ name: 'sender_identifier', nullable: true })
+  senderIdentifier: string;
 
   @Column({
     type: 'longtext'
@@ -30,8 +30,8 @@ export class TicketMessage {
   @Column({ name: 'sender_name' })
   senderName: string;
 
-  @Column()
-  sender: TicketMessageSender
+  @Column({ name: 'sender_type' })
+  senderType: TicketMessageSender
 
   @Column({ name: 'ticket_id' })
   ticketId: number;

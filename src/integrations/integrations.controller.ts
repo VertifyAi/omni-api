@@ -5,10 +5,12 @@ import {
   UseGuards,
   Body,
   Get,
+  Param,
 } from '@nestjs/common';
 import { IntegrationsService } from './integrations.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { WhatsappIntegrationDto } from './dto/whatsapp-integration.dto';
+import { IntegrationType } from './entities/integration.entity';
 
 @UseGuards(AuthGuard)
 @Controller('integrations')
@@ -34,5 +36,16 @@ export class IntegrationsController {
   @Get('whatsapp/phone_numbers')
   async getWhatsappPhoneNumbers(@Request() req) {
     return await this.integrationsService.getWhatsappPhoneNumbers(req.user);
+  }
+
+  @Post(':type/desactivate')
+  async desactivateIntegration(
+    @Request() req,
+    @Param('type') type: IntegrationType,
+  ) {
+    return await this.integrationsService.desactivateIntegration(
+      req.user,
+      type,
+    );
   }
 }

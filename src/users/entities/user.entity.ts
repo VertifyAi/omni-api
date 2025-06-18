@@ -10,10 +10,12 @@ import {
   JoinTable,
   ManyToOne,
   JoinColumn,
+  OneToOne,
 } from 'typeorm';
 import { Team } from 'src/teams/entities/teams.entity';
 import { Exclude } from 'class-transformer';
 import { Company } from 'src/companies/entities/company.entity';
+import { Workflow } from 'src/workflows/entities/workflow.entity';
 export enum UserRole {
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
@@ -59,6 +61,9 @@ export class User {
   @Column({ name: 'company_id' })
   companyId: number;
 
+  @Column({ name: 'workflow_id' })
+  workflowId: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -78,4 +83,8 @@ export class User {
   @ManyToOne(() => Company, (company) => company.users)
   @JoinColumn({ name: 'company_id' })
   company: Company;
+
+  @OneToOne(() => Workflow, (workflow) => workflow.workflowUser)
+  @JoinColumn({ name: 'workflow_id' })
+  workflow: Workflow;
 }

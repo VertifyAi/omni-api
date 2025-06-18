@@ -193,4 +193,8 @@ export class TeamsService {
   async findByIds(ids: number[], companyId: number): Promise<Team[]> {
     return await this.teamsRepository.findBy({ id: In(ids), companyId });
   }
+
+  async findOneById(id: number, companyId: number) {
+    return await this.teamsRepository.findOneBy({ id, companyId });
+  }
 }

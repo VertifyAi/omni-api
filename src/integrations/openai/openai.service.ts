@@ -135,26 +135,28 @@ export class OpenAIService {
   }
 
   /**
-   * Cria uma run de execução de um assistente
+   * Cria uma run de execução de um assistente ou modelo
    * @param threadId - O ID do thread de conversa
-   * @param assistantId - O ID do assistente
+   * @param assistantIdOrModel - O ID do assistente ou nome do modelo
    * @returns A resposta da OpenAI
    */
   async createAndStreamRun(
     threadId: string,
-    assistantId: string,
+    assistantIdOrModel: string,
   ): Promise<OpenAIStreamResponse> {
     try {
+      const requestBody = {
+        assistant_id: assistantIdOrModel,
+        stream: true,
+      };
+
       const { data } = await lastValueFrom(
         this.httpService.post(
           this.configService.get('OPENAI_API_BASEURL') +
             '/threads/' +
             threadId +
             '/runs',
-          {
-            assistant_id: assistantId,
-            stream: true,
-          },
+          requestBody,
           {
             headers: {
               'Content-Type': 'application/json',

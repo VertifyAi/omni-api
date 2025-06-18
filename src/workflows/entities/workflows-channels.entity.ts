@@ -5,7 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Workflow } from './workflow.entity';
 
 @Entity('workflows_channels')
 export class WorkflowsChannels {
@@ -15,8 +18,8 @@ export class WorkflowsChannels {
   @Column({ name: 'workflow_id' })
   workflowId: number;
 
-  @Column({ name: 'channel_id' })
-  channelId: number;
+  @Column({ name: 'integration_id' })
+  integrationId: number;
 
   @Column({ name: 'channel_identifier' })
   channelIdentifier: string;
@@ -29,4 +32,8 @@ export class WorkflowsChannels {
 
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt: Date;
+
+  @ManyToOne(() => Workflow, workflow => workflow.workflowChannels)
+  @JoinColumn({ name: 'workflow_id' })
+  workflow: Workflow;
 }

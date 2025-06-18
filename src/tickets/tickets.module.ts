@@ -20,6 +20,7 @@ import { VeraiService } from 'src/verai/verai.service';
 import { UtilsModule } from 'src/utils/utils.module';
 import { TeamsModule } from 'src/teams/teams.module';
 import { IntegrationsModule } from 'src/integrations/integrations.module';
+import { WorkflowsModule } from 'src/workflows/workflows.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ticket, TicketMessage, Company, User]),
@@ -33,6 +34,7 @@ import { IntegrationsModule } from 'src/integrations/integrations.module';
     UtilsModule,
     TeamsModule,
     IntegrationsModule,
+    WorkflowsModule,
   ],
   controllers: [TicketsController],
   providers: [

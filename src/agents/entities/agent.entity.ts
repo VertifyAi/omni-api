@@ -6,10 +6,13 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  JoinColumn,
+  OneToOne,
 } from 'typeorm';
 import { Ticket } from 'src/tickets/entities/ticket.entity';
 import { InteractionExample } from './interaction-example.entity';
 import { TeamsToRedirect } from './teams-to-redirect.entity';
+import { Workflow } from 'src/workflows/entities/workflow.entity';
 
 export enum AgentObjective {
   SCREENING = 'screening',
@@ -50,15 +53,18 @@ export class Agent {
 
   @Column()
   description: string;
-  
+
   @Column({ name: 'presentation_example' })
   presentationExample: string;
-  
+
   @Column({ name: 'llm_assistant_id' })
   llmAssistantId: string;
 
   @Column({ name: 'company_id' })
   companyId: number;
+
+  @Column({ name: 'workflow_id' })
+  workflowId: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -69,12 +75,16 @@ export class Agent {
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt: Date;
 
-  @OneToMany(() => Ticket, ticket => ticket.agent)
+  @OneToMany(() => Ticket, (ticket) => ticket.agent)
   tickets: Ticket[];
 
-  @OneToMany(() => TeamsToRedirect, team => team.agentId)
+  @OneToMany(() => TeamsToRedirect, (team) => team.agentId)
   teamsToRedirect: TeamsToRedirect[];
 
-  @OneToMany(() => InteractionExample, interaction => interaction.agentId)
+  @OneToMany(() => InteractionExample, (interaction) => interaction.agentId)
   interactionExamples: InteractionExample[];
+
+  @OneToOne(() => Workflow, (workflow) => workflow.workflowAgent)
+  @JoinColumn({ name: 'workflow_id' })
+  workflow: Workflow;
 }

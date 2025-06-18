@@ -16,6 +16,7 @@ import { VeraiModule } from 'src/verai/verai.module';
 import { TeamsModule } from 'src/teams/teams.module';
 import { IntegrationsModule } from 'src/integrations/integrations.module';
 import { BillingModule } from 'src/billing/billing.module';
+import { WorkflowsModule } from 'src/workflows/workflows.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { BillingModule } from 'src/billing/billing.module';
     TeamsModule,
     IntegrationsModule,
     BillingModule,
+    WorkflowsModule,
   ],
   controllers: [WebhookController],
   providers: [TicketsService, ChatGateway],

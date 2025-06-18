@@ -20,11 +20,11 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
-  street_name: string
+  streetName: string
 
   @IsString()
   @IsNotEmpty()
-  street_number: string
+  streetNumber: string
 
   @IsString()
   @IsNotEmpty()

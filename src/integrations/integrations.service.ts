@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Integration, IntegrationType } from './entities/integration.entity';
 import { User } from 'src/users/entities/user.entity';
 import { WhatsappIntegrationDto } from './dto/whatsapp-integration.dto';
@@ -35,7 +35,7 @@ export class IntegrationsService {
       active: true,
       config: whatsappIntegrationDto,
     });
-    console.log("integration", integration);
+    console.log('integration', integration);
     await this.integrationRepository.save(integration);
     return integration;
   }
@@ -86,6 +86,26 @@ export class IntegrationsService {
       }
     }
 
-    return response
+    return response;
+  }
+
+  async findByIds(ids: number[], companyId: number) {
+    return await this.integrationRepository.findBy({ id: In(ids), companyId });
+  }
+
+  async desactivateIntegration(currentUser: User, type: IntegrationType) {
+    const integration = await this.integrationRepository.findOneBy({
+      companyId: currentUser.companyId,
+      type,
+      active: true,
+    });
+
+    if (!integration) {
+      throw new Error('Integration not found');
+    }
+
+    integration.active = false;
+    await this.integrationRepository.save(integration);
+    return integration;
   }
 }

@@ -2,16 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Agent } from './entities/agent.entity';
-import { CreateAgentDto } from './dto/create-agent.dto';
+import { CreateAgentDto, InteractionExampleDto } from './dto/create-agent.dto';
 import { User } from 'src/users/entities/user.entity';
 import { OpenAIService } from 'src/integrations/openai/openai.service';
 import { TeamsService } from 'src/teams/teams.service';
+import { InteractionExample } from './entities/interaction-example.entity';
+import { TeamsToRedirect } from './entities/teams-to-redirect.entity';
 
 @Injectable()
 export class AgentsService {
   constructor(
     @InjectRepository(Agent)
     private readonly agentRepository: Repository<Agent>,
+    @InjectRepository(InteractionExample)
+    private readonly interactionExampleRepository: Repository<InteractionExample>,
+    @InjectRepository(TeamsToRedirect)
+    private readonly teamsToRedirectRepository: Repository<TeamsToRedirect>,
     private readonly llmService: OpenAIService,
     private readonly teamService: TeamsService,
   ) {}
@@ -40,6 +46,38 @@ export class AgentsService {
       currentUser,
     );
 
+    const agent = await this.agentRepository.save({
+      name: createAgentDto.name,
+      tone: createAgentDto.tone,
+      objective: createAgentDto.objective,
+      segment: createAgentDto.segment,
+      description: createAgentDto.description,
+      llmAssistantId: assistant.id,
+      companyId: currentUser.companyId,
+    });
+
+    if (createAgentDto.interaction_example) {
+      await this.interactionExampleRepository.save(
+        createAgentDto.interaction_example.map(
+          (example: InteractionExampleDto) => ({
+            agentId: agent.id,
+            question: example.question,
+            answer: example.answer,
+            reasoning: example.reasoning,
+          }),
+        ),
+      );
+    }
+
+    if (createAgentDto.teams_to_redirect) {
+      await this.teamsToRedirectRepository.save(
+        createAgentDto.teams_to_redirect.map((teamId: number) => ({
+          agentId: agent.id,
+          teamId: teamId,
+        })),
+      );
+    }
+
     return assistant;
   }
 
@@ -53,6 +91,15 @@ export class AgentsService {
       companyId: currentUser.companyId,
       id: Number(agentId),
     });
+  }
+
+  /**
+   * Encontra um agente baseado no id
+   * @param agentId
+   * @param companyId
+   */
+  async findOneById(agentId: number, companyId: number) {
+    return await this.agentRepository.findOneBy({ id: agentId, companyId });
   }
 
   // /**

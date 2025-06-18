@@ -10,8 +10,10 @@ import {
   ManyToMany,
   JoinTable,
   JoinColumn,
+  OneToOne,
 } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
+import { Workflow } from 'src/workflows/entities/workflow.entity';
 
 @Entity('areas')
 export class Team {
@@ -33,6 +35,9 @@ export class Team {
   @Column({ name: 'owner_id' })
   ownerId: number;
 
+  @Column({ name: 'workflow_id' })
+  workflowId: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -53,4 +58,8 @@ export class Team {
   @ManyToMany(() => User, (user) => user.teams)
   @JoinTable()
   members: User[];
+
+  @OneToOne(() => Workflow, (workflow) => workflow.workflowTeam)
+  @JoinColumn({ name: 'workflow_id' })
+  workflow: Workflow;
 }
