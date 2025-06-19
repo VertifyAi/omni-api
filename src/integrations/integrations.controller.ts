@@ -33,7 +33,7 @@ export class IntegrationsController {
     return await this.integrationsService.findAllIntegrations(req.user);
   }
 
-  @Get('whatsapp/phone_numbers')
+  @Get('whatsapp/phone-numbers')
   async getWhatsappPhoneNumbers(@Request() req) {
     return await this.integrationsService.getWhatsappPhoneNumbers(req.user);
   }

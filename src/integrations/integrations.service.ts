@@ -54,10 +54,13 @@ export class IntegrationsService {
   }
 
   async getWhatsappPhoneNumbers(currentUser: User) {
+    console.log('getWhatsappPhoneNumbers');
     const integration = await this.integrationRepository.findOneBy({
       companyId: currentUser.companyId,
       type: IntegrationType.WHATSAPP,
     });
+
+    console.log('integration', integration);
 
     if (!integration) {
       throw new Error('Integration not found');
@@ -71,6 +74,8 @@ export class IntegrationsService {
       ),
     );
 
+    console.log('data', data);
+
     for (const business of data.businesses.data) {
       const { data: wabaData } = await lastValueFrom(
         this.httpService.get(
@@ -78,12 +83,16 @@ export class IntegrationsService {
         ),
       );
 
+      console.log('wabaData', wabaData);
+
       for (const account of wabaData.data) {
         const { data: phoneData } = await lastValueFrom(
           this.httpService.get(
             `https://graph.facebook.com/v22.0/${account.id}?fields=phone_numbers&access_token=${integration.config.access_token}`,
           ),
         );
+
+        console.log('phoneData', phoneData);
 
         if (phoneData.phone_numbers) {
           for (const phone of phoneData.phone_numbers.data) {
