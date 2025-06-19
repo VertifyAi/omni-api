@@ -19,24 +19,31 @@ export class IntegrationsService {
     currentUser: User,
     whatsappIntegrationDto: WhatsappIntegrationDto,
   ): Promise<Integration> {
-    console.log('whatsappIntegrationDto', whatsappIntegrationDto);
     let integration = await this.integrationRepository.findOneBy({
       companyId: currentUser.companyId,
       type: IntegrationType.WHATSAPP,
     });
 
-    if (integration) {
-      throw new Error('Integration already exists');
+    if (integration && integration.active) {
+      return integration;
+    } else if (integration && !integration.active) {
+      integration.active = true;
+      integration.config = whatsappIntegrationDto;
+    } else {
+      integration = this.integrationRepository.create({
+        companyId: currentUser.companyId,
+        type: IntegrationType.WHATSAPP,
+        active: true,
+        config: whatsappIntegrationDto,
+      });
     }
 
-    integration = this.integrationRepository.create({
-      companyId: currentUser.companyId,
-      type: IntegrationType.WHATSAPP,
-      active: true,
-      config: whatsappIntegrationDto,
-    });
-    console.log('integration', integration);
-    await this.integrationRepository.save(integration);
+    try {
+      await this.integrationRepository.save(integration);
+    } catch (error) {
+      throw new Error(error);
+    }
+
     return integration;
   }
 
@@ -105,6 +112,24 @@ export class IntegrationsService {
     }
 
     integration.active = false;
+
+    try {
+      for (const wabaId of integration.config.waba_ids) {
+        await lastValueFrom(
+          this.httpService.delete(
+            `https://graph.facebook.com/v23.0/${wabaId}/subscribed_apps`,
+            {
+              headers: {
+                Authorization: `Bearer ${integration.config.access_token}`,
+              },
+            },
+          ),
+        );
+      }
+    } catch (error) {
+      console.error(error);
+    }
+
     await this.integrationRepository.save(integration);
     return integration;
   }
