@@ -182,27 +182,11 @@ export class TicketsService {
       throw new NotFoundException('Ticket not found');
     }
 
-    const whatsappPayload = {
-      messaging_product: 'whatsapp',
-      to: ticket.customer.phone,
-      type: 'text',
-      text: {
-        body: `*${ticket.agent.name}*\n\n${createAITicketMessage.content}`,
-      },
-    };
-
     try {
-      await lastValueFrom(
-        this.httpService.post(
-          `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`,
-          whatsappPayload,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
+      await this.sendMessageToWhatsapp(
+        ticket,
+        createAITicketMessage.content,
+        ticket.agent.name,
       );
 
       const ticketMessage = this.ticketMessageRepository.create({
@@ -319,34 +303,11 @@ export class TicketsService {
       senderIdentifier: 'OMNI',
     });
 
-    const whatsappPayload = {
-      messaging_product: 'whatsapp',
-      to: ticket.customer.phone,
-      type: 'text',
-      text: {
-        body: `*${currentUser.name}*\n\n${sendMessageDto.message}`,
-      },
-    };
-    try {
-      await lastValueFrom(
-        this.httpService.post(
-          `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`,
-          whatsappPayload,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
-      );
-    } catch (error) {
-      console.error(
-        'Erro ao enviar mensagem para WhatsApp:',
-        error.response?.data || error.message,
-      );
-      throw new Error('Falha ao enviar mensagem pelo WhatsApp.');
-    }
+    await this.sendMessageToWhatsapp(
+      ticket,
+      sendMessageDto.message,
+      currentUser.name,
+    );
 
     await this.ticketMessageRepository.save(ticketMessage);
     this.chatGateway.emitNewMessage(ticketMessage);
@@ -448,8 +409,10 @@ export class TicketsService {
       ticket.id,
       messageContent,
       TicketMessageSender.AI,
-      'Omni AI',
+      ticket.agent.name,
     );
+
+    await this.sendMessageToWhatsapp(ticket, messageContent, ticket.agent.name);
 
     return await this.ticketRepository.save({
       ...ticket,
@@ -582,6 +545,47 @@ export class TicketsService {
           });
         }
       }
+    }
+  }
+
+  /**
+   * Envia uma mensagem para o WhatsApp
+   * @param ticket Ticket
+   * @param message Conteúdo da mensagem
+   * @param senderName Nome do remetente
+   */
+  private async sendMessageToWhatsapp(
+    ticket: Ticket,
+    message: string,
+    senderName: string,
+  ) {
+    const whatsappPayload = {
+      messaging_product: 'whatsapp',
+      to: ticket.customer.phone,
+      type: 'text',
+      text: {
+        body: `*${senderName}*\n\n${message}`,
+      },
+    };
+    try {
+      await lastValueFrom(
+        this.httpService.post(
+          `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`,
+          whatsappPayload,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        ),
+      );
+    } catch (error) {
+      console.error(
+        'Erro ao enviar mensagem para WhatsApp:',
+        error.response?.data || error.message,
+      );
+      throw new Error('Falha ao enviar mensagem pelo WhatsApp.');
     }
   }
 }
