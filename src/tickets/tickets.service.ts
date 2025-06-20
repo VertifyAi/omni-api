@@ -212,7 +212,10 @@ export class TicketsService {
         senderName: ticket.agent.name,
         senderType: TicketMessageSender.AI,
       });
-      this.chatGateway.emitNewMessage(ticketMessage);
+      this.chatGateway.emitNewMessage({
+        ...ticketMessage,
+        createdAt: new Date(),
+      });
       await this.ticketMessageRepository.save(ticketMessage);
     } catch (error) {
       console.error(
@@ -313,7 +316,7 @@ export class TicketsService {
       senderName: currentUser.name,
       ticketId,
       senderType: TicketMessageSender.USER,
-      senderIdentifier: "OMNI",
+      senderIdentifier: 'OMNI',
     });
 
     const whatsappPayload = {

@@ -79,17 +79,31 @@ export class WorkflowsService {
       companyId,
     );
 
-    workflow.workflowChannels = channels.map((channel) => {
+    // Primeiro salva o workflow para obter o ID
+    const savedWorkflow = await this.workflowRepository.save(workflow);
+
+    // Depois cria e salva os channels com o workflow_id correto
+    const workflowChannels = channels.map((channel) => {
       const channelData = createWorkflowDto.workflowChannels.find(
         (c) => c.channelId === channel.id,
       );
       return this.workflowsChannelsRepository.create({
         channelIdentifier: channelData?.channelIdentifier,
         integrationId: channel.id,
+        workflowId: savedWorkflow.id, // Define o workflow_id corretamente
       });
     });
 
-    return await this.workflowRepository.save(workflow);
+    console.log('workflow.workflowChannels', workflowChannels);
+
+    await this.workflowsChannelsRepository.save(workflowChannels);
+
+    // Associa os channels salvos ao workflow
+    savedWorkflow.workflowChannels = workflowChannels;
+
+    console.log('savedWorkflow', savedWorkflow);
+
+    return savedWorkflow;
   }
 
   async findOne(id: number, companyId: number) {
