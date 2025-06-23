@@ -31,6 +31,7 @@ import { GetAnalyticsDto } from 'src/analytics/dto/get-analytics.dto';
 import { Customer } from 'src/customers/entities/customer.entity';
 import { WorkflowsService } from 'src/workflows/workflows.service';
 import { Workflow } from 'src/workflows/entities/workflow.entity';
+import { TransferTicketDto } from './dto/transfer-ticket.dto';
 // import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
 
 interface MessageBuffer {
@@ -69,6 +70,10 @@ export class TicketsService {
     private readonly workflowsService: WorkflowsService,
   ) {}
 
+  /**
+   * Lida com uma mensagem recebida pelo WhatsApp
+   * @param createTicketMessageDto Dados da mensagem
+   */
   async handleIncomingMessage(
     createTicketMessageDto: WhatsappWebhookDto,
   ): Promise<void> {
@@ -137,6 +142,11 @@ export class TicketsService {
     }
   }
 
+  /**
+   * Obtém todos os tickets
+   * @param currentUser Usuário atual
+   * @returns Tickets
+   */
   async findAllTickets(currentUser: User): Promise<Ticket[]> {
     let where: FindOptionsWhere<Ticket> = {
       companyId: currentUser.companyId,
@@ -168,6 +178,10 @@ export class TicketsService {
     });
   }
 
+  /**
+   * Cria uma mensagem para um ticket
+   * @param createAITicketMessage Dados da mensagem
+   */
   async createAITicketMessage(
     createAITicketMessage: CreateAITicketMessageDto,
   ): Promise<void> {
@@ -210,6 +224,11 @@ export class TicketsService {
     }
   }
 
+  /**
+   * Obtém as mensagens de um ticket
+   * @param ticketId ID do ticket
+   * @returns Mensagens do ticket
+   */
   async findMessagesByTicket(ticketId: number): Promise<TicketMessage[]> {
     return await this.ticketMessageRepository.find({
       where: { ticketId },
@@ -217,6 +236,13 @@ export class TicketsService {
     });
   }
 
+  /**
+   * Altera o status de um ticket
+   * @param changeTicketStatusDto Dados da alteração do status
+   * @param currentUser Usuário atual
+   * @param ticketId ID do ticket
+   * @returns Ticket atualizado
+   */
   async changeTicketStatus(
     changeTicketStatusDto: ChangeTicketStatusDto,
     currentUser: User,
@@ -234,7 +260,10 @@ export class TicketsService {
       throw new NotFoundException('Ticket not found');
     }
 
-    const messageContent = `A partir deste momento, nosso agente humano ${currentUser.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
+    const messageContent = await this.chooseMessageToSendWhenTicketIsChanged(
+      changeTicketStatusDto,
+      currentUser,
+    );
 
     const whatsappPayload = {
       messaging_product: 'whatsapp',
@@ -278,9 +307,18 @@ export class TicketsService {
     return await this.ticketRepository.save({
       ...ticket,
       status: changeTicketStatusDto.status,
+      userId: changeTicketStatusDto.userId,
+      priorityLevel: changeTicketStatusDto.priorityLevel,
     });
   }
 
+  /**
+   * Envia uma mensagem para um ticket
+   * @param ticketId ID do ticket
+   * @param sendMessageDto Dados da mensagem
+   * @param currentUser Usuário atual
+   * @returns Mensagem enviada
+   */
   async sendMessage(
     ticketId: number,
     sendMessageDto: SendMessageDto,
@@ -315,6 +353,12 @@ export class TicketsService {
     return ticketMessage;
   }
 
+  /**
+   * Obtém os dados de análise de tickets
+   * @param getAnalyticsDto Dados de análise
+   * @param companyId ID da empresa
+   * @returns Dados de análise
+   */
   async getTicketsAnalytics(
     getAnalyticsDto: GetAnalyticsDto,
     companyId: number,
@@ -346,6 +390,69 @@ export class TicketsService {
         createdAt: 'DESC',
       },
     });
+  }
+
+  /**
+   * Transfere um ticket para um novo agente ou equipe
+   * @param transferTicketDto Dados da transferência
+   * @param currentUser Usuário atual
+   * @param ticketId ID do ticket
+   */
+  async transferTicket(
+    transferTicketDto: TransferTicketDto,
+    currentUser: User,
+    ticketId: number,
+  ) {
+    let newTicket: Partial<Ticket> = {};
+    if (transferTicketDto.userId) {
+      const user = await this.usersService.findOneById(
+        transferTicketDto.userId,
+        currentUser.companyId,
+      );
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      newTicket = {
+        areaId: 0,
+        agentId: 0,
+        userId: user.id,
+        priorityLevel: transferTicketDto.priorityLevel,
+      };
+    } else if (transferTicketDto.teamId) {
+      const team = await this.teamsService.findOneById(
+        transferTicketDto.teamId,
+        currentUser.companyId,
+      );
+      if (!team) {
+        throw new NotFoundException('Team not found');
+      }
+
+      newTicket = {
+        userId: 0,
+        agentId: 0,
+        areaId: team.id,
+        priorityLevel: transferTicketDto.priorityLevel,
+      };
+    } else if (transferTicketDto.agentId) {
+      const agent = await this.agentsService.findOneById(
+        transferTicketDto.agentId,
+        currentUser.companyId,
+      );
+      if (!agent) {
+        throw new NotFoundException('Agent not found');
+      }
+
+      newTicket = {
+        areaId: 0,
+        userId: 0,
+        agentId: agent.id,
+        priorityLevel: transferTicketDto.priorityLevel,
+        status: TicketStatus.AI,
+      };
+    }
+
+    return await this.ticketRepository.update(ticketId, newTicket);
   }
 
   /**
@@ -586,6 +693,35 @@ export class TicketsService {
         error.response?.data || error.message,
       );
       throw new Error('Falha ao enviar mensagem pelo WhatsApp.');
+    }
+  }
+
+  /**
+   * Escolhe a mensagem a ser enviada quando o ticket é alterado
+   * @param ticketStatusDto Dados da alteraçã o do ticket
+   * @param currentUser Usuário atual
+   * @returns Mensagem a ser enviada
+   */
+  private async chooseMessageToSendWhenTicketIsChanged(
+    ticketStatusDto: ChangeTicketStatusDto,
+    currentUser: User,
+  ) {
+    if (ticketStatusDto.status === TicketStatus.CLOSED) {
+      return `Obrigado por entrar em contato! Foi um prazer te ajudar até aqui! 😊
+
+Para nos ajudar a melhorar nosso atendimento, você poderia avaliar sua experiência conosco?
+
+👍 5 - Excelente
+👌 4 - Bom
+😐 3 - Regular
+👎 2 - Ruim
+👎 1 - Péssimo
+
+Sua opinião é muito importante para nós!`;
+    }
+
+    if (ticketStatusDto.status === TicketStatus.IN_PROGRESS) {
+      return `A partir deste momento, nosso agente humano ${currentUser.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
     }
   }
 }

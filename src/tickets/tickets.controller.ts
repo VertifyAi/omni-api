@@ -6,12 +6,14 @@ import {
   Post,
   Body,
   Param,
+  Patch,
 } from '@nestjs/common';
 import { TicketsService } from './tickets.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { CreateAITicketMessageDto } from './dto/create-ai-ticket-message.dto';
 import { ChangeTicketStatusDto } from './dto/change-ticket-status.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { TransferTicketDto } from './dto/transfer-ticket.dto';
 
 @Controller('tickets')
 export class TicketsController {
@@ -53,14 +55,28 @@ export class TicketsController {
   }
 
   @UseGuards(AuthGuard)
-  @Post('status/:id')
+  @Patch('status/:id')
   async changeTicketStatus(
     @Body() changeTicketStatusDto: ChangeTicketStatusDto,
     @Request() req,
-    @Param(':id') ticketId: number,
+    @Param('id') ticketId: number,
   ) {
     return await this.ticketsService.changeTicketStatus(
       changeTicketStatusDto,
+      req.user,
+      ticketId,
+    );
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch(':id/transfer')
+  async transferTicket(
+    @Body() transferTicketDto: TransferTicketDto,
+    @Request() req,
+    @Param('id') ticketId: number,
+  ) {
+    return await this.ticketsService.transferTicket(
+      transferTicketDto,
       req.user,
       ticketId,
     );
