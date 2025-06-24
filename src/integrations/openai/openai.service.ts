@@ -187,6 +187,7 @@ export class OpenAIService {
     return new Promise((resolve, reject) => {
       let buffer = '';
       let responseText = '';
+      let resolved = false;
 
       stream.on('data', (chunk) => {
         buffer += chunk.toString();
@@ -212,12 +213,20 @@ export class OpenAIService {
 
             if (eventData === '[DONE]') {
               console.log('Stream finalizado.');
+              if (responseText && !resolved) {
+                resolved = true;
+                resolve(responseText);
+              }
               return;
             }
 
             if (eventData && eventName) {
               const parsedData = JSON.parse(eventData);
+              
+              // Log para debug
+              console.log(`Evento: ${eventName}, Objeto: ${parsedData.object}, Status: ${parsedData.status}`);
 
+              // Verifica se é uma ação que requer intervenção humana
               if (
                 parsedData.object === 'thread.run' &&
                 parsedData.status === 'requires_action'
@@ -233,25 +242,37 @@ export class OpenAIService {
                 switch (response.name) {
                   case 'request_human_assistance':
                     const jsonResponse = JSON.parse(response.arguments);
-                    resolve({
-                      ...jsonResponse,
-                      action: 'request_human_assistance',
-                    });
-                    break;
+                    if (!resolved) {
+                      resolved = true;
+                      resolve({
+                        ...jsonResponse,
+                        action: 'request_human_assistance',
+                      });
+                    }
+                    return;
                   default:
                     break;
                 }
               }
 
-              if (
-                parsedData.object === 'thread.message' &&
-                parsedData.status === 'completed'
-              ) {
+              // Verifica se é uma mensagem completada
+              if (parsedData.object === 'thread.message') {
                 if (parsedData.content?.[0]?.text?.value) {
                   responseText = parsedData.content[0].text.value;
-                  resolve(responseText);
-                  return;
+                  console.log('Resposta capturada:', responseText);
                 }
+              }
+
+              // Verifica se o run foi completado
+              if (
+                parsedData.object === 'thread.run' &&
+                parsedData.status === 'completed' &&
+                responseText &&
+                !resolved
+              ) {
+                resolved = true;
+                resolve(responseText);
+                return;
               }
             }
           } catch (error) {
@@ -261,19 +282,22 @@ export class OpenAIService {
       });
 
       stream.on('end', () => {
-        if (responseText) {
+        if (responseText && !resolved) {
+          resolved = true;
           resolve(responseText);
-        } else {
+        } else if (!resolved) {
           reject(
             new Error(
-              'Evento "thread.message.completed" não encontrado no stream.',
+              'Nenhuma resposta válida encontrada no stream da OpenAI.',
             ),
           );
         }
       });
 
       stream.on('error', (error) => {
-        reject(error);
+        if (!resolved) {
+          reject(error);
+        }
       });
     });
   }
@@ -647,6 +671,49 @@ export class OpenAIService {
     } catch (error) {
       this.logger.error(
         `Erro ao vincular function ao assistente: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Transcreve um arquivo de áudio usando a API do OpenAI
+   * @param audioBuffer - Buffer do arquivo de áudio
+   * @param fileName - Nome do arquivo
+   * @returns A transcrição do áudio
+   */
+  async transcribeAudio(
+    audioBuffer: Buffer,
+    fileName: string,
+  ): Promise<string> {
+    try {
+      const formData = new FormData();
+      formData.append('file', audioBuffer, {
+        filename: fileName,
+        contentType: 'audio/ogg',
+      });
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'pt');
+
+      const { data } = await lastValueFrom(
+        this.httpService.post(
+          this.configService.get('OPENAI_API_BASEURL') + '/audio/transcriptions',
+          formData,
+          {
+            headers: {
+              ...formData.getHeaders(),
+              Authorization: this.openaiApiKey,
+            },
+          },
+        ),
+      );
+
+      this.logger.log(`Áudio transcrito com sucesso: ${fileName}`);
+      return data.text;
+    } catch (error) {
+      this.logger.error(
+        `Erro ao transcrever áudio: ${error.message}`,
         error.stack,
       );
       throw error;

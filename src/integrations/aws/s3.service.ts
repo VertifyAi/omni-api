@@ -37,4 +37,27 @@ export class S3Service {
     await this.s3.send(command);
     return `https://omni-profile-images.s3.us-east-2.amazonaws.com/${file.originalname}`;
   }
+
+  /**
+   * Uploads an audio file to the S3 bucket
+   * @param audioBuffer - The audio buffer to upload
+   * @param fileName - The name of the file
+   * @param contentType - The MIME type of the audio file
+   * @returns The URL of the uploaded file
+   */
+  async uploadAudioFile(
+    audioBuffer: Buffer,
+    fileName: string,
+    contentType: string = 'audio/ogg',
+  ): Promise<string> {
+    const command = new PutObjectCommand({
+      Bucket: 'omni-whatsapp-audios',
+      Key: `audios/${fileName}`,
+      Body: audioBuffer,
+      ContentType: contentType,
+    });
+    
+    await this.s3.send(command);
+    return `https://omni-whatsapp-audios.s3.us-east-2.amazonaws.com/audios/${fileName}`;
+  }
 }

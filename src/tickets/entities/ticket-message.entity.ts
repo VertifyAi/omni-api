@@ -14,6 +14,11 @@ export enum TicketMessageSender {
   CUSTOMER = 'CUSTOMER'
 }
 
+export enum TicketMessageType {
+  TEXT = 'TEXT',
+  AUDIO = 'AUDIO',
+}
+
 @Entity('ticket_messages')
 export class TicketMessage {
   @PrimaryGeneratedColumn()
@@ -32,6 +37,9 @@ export class TicketMessage {
 
   @Column({ name: 'sender_type' })
   senderType: TicketMessageSender
+
+  @Column({ name: 'message_type', nullable: false })
+  messageType: TicketMessageType;
 
   @Column({ name: 'ticket_id' })
   ticketId: number;

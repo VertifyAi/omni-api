@@ -21,6 +21,8 @@ import { UtilsModule } from 'src/utils/utils.module';
 import { TeamsModule } from 'src/teams/teams.module';
 import { IntegrationsModule } from 'src/integrations/integrations.module';
 import { WorkflowsModule } from 'src/workflows/workflows.module';
+import { S3Service } from 'src/integrations/aws/s3.service';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ticket, TicketMessage, Company, User]),
@@ -43,6 +45,7 @@ import { WorkflowsModule } from 'src/workflows/workflows.module';
     ChatGateway,
     UsersService,
     VeraiService,
+    S3Service,
   ],
   exports: [TicketsService],
 })

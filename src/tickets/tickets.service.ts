@@ -9,6 +9,7 @@ import {
 import {
   TicketMessage,
   TicketMessageSender,
+  TicketMessageType,
 } from './entities/ticket-message.entity';
 import { WhatsappWebhookDto } from '../webhook/dto/handle-incoming-message.dto';
 import { CompaniesService } from '../companies/companies.service';
@@ -32,10 +33,17 @@ import { Customer } from 'src/customers/entities/customer.entity';
 import { WorkflowsService } from 'src/workflows/workflows.service';
 import { Workflow } from 'src/workflows/entities/workflow.entity';
 import { TransferTicketDto } from './dto/transfer-ticket.dto';
+import { S3Service } from 'src/integrations/aws/s3.service';
 // import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
 
+interface MessageData {
+  content: string;
+  type: TicketMessageType;
+  audioUrl?: string;
+}
+
 interface MessageBuffer {
-  messages: string[];
+  messages: MessageData[];
   timer: NodeJS.Timeout;
   customerId: number;
   companyId: number;
@@ -68,6 +76,7 @@ export class TicketsService {
     private readonly teamsService: TeamsService,
     private readonly llmService: OpenAIService,
     private readonly workflowsService: WorkflowsService,
+    private readonly s3Service: S3Service,
   ) {}
 
   /**
@@ -102,15 +111,44 @@ export class TicketsService {
       } as CreateCustomerDto);
     }
 
-    const message =
-      createTicketMessageDto.entry[0].changes[0].value.messages[0].text.body;
+    const messageData =
+      createTicketMessageDto.entry[0].changes[0].value.messages[0];
+    let message: string;
+
+    // Verifica se é áudio ou texto
+    let messageObj: MessageData;
+    if (messageData.type === 'audio' && messageData.audio) {
+      const audioResult = await this.processAudioMessage(
+        messageData.audio.id,
+        customer.id,
+        createTicketMessageDto.entry[0].changes[0].value.contacts[0].profile
+          .name,
+        createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
+      );
+
+      messageObj = {
+        content: audioResult.transcription,
+        type: TicketMessageType.TEXT, // Para processamento da IA
+        audioUrl: audioResult.s3AudioUrl,
+      };
+
+      message = audioResult.transcription;
+    } else if (messageData.type === 'text' && messageData.text) {
+      message = messageData.text.body;
+      messageObj = {
+        content: message,
+        type: TicketMessageType.TEXT,
+      };
+    } else {
+      throw new Error('Tipo de mensagem não suportado');
+    }
+
     const bufferKey = `${customer.id}-${workflow.companyId}`;
 
-    // Se já existe um buffer para este cliente/empresa
     if (this.messageBuffers.has(bufferKey)) {
       const buffer = this.messageBuffers.get(bufferKey);
       if (buffer) {
-        buffer.messages.push(message);
+        buffer.messages.push(messageObj);
         clearTimeout(buffer.timer);
         buffer.timer = setTimeout(() => {
           this.processBufferedMessages(bufferKey);
@@ -118,7 +156,7 @@ export class TicketsService {
       }
     } else {
       const buffer: MessageBuffer = {
-        messages: [message],
+        messages: [messageObj],
         timer: setTimeout(() => {
           this.processBufferedMessages(bufferKey);
         }, this.BUFFER_TIMEOUT),
@@ -139,6 +177,106 @@ export class TicketsService {
         newCustomer: false,
       };
       this.messageBuffers.set(bufferKey, buffer);
+    }
+  }
+
+  /**
+   * Processa uma mensagem de áudio do WhatsApp
+   * @param audioId ID do áudio no WhatsApp
+   * @param customerId ID do cliente
+   * @param customerName Nome do cliente
+   * @param customerPhone Telefone do cliente
+   * @param ticketId ID do ticket (se existir)
+   * @returns Objeto com transcrição e URL do S3
+   */
+  private async processAudioMessage(
+    audioId: string,
+    customerId: number,
+    customerName: string,
+    customerPhone: string,
+    ticketId?: number,
+  ): Promise<{ transcription: string; s3AudioUrl: string }> {
+    try {
+      // 1. Obter URL temporária do áudio
+      const audioUrl = await this.getWhatsAppAudioUrl(audioId);
+
+      // 2. Fazer download do áudio
+      const audioBuffer = await this.downloadAudio(audioUrl);
+
+      // 3. Salvar no S3
+      const fileName = `audio_${audioId}_${Date.now()}.ogg`;
+      const s3AudioUrl = await this.s3Service.uploadAudioFile(
+        audioBuffer,
+        fileName,
+      );
+
+      // 4. Salvar mensagem de áudio no banco se já tiver ticket
+      if (ticketId) {
+        await this.createNewMessage(
+          customerPhone,
+          ticketId,
+          s3AudioUrl,
+          TicketMessageSender.CUSTOMER,
+          customerName,
+          TicketMessageType.AUDIO,
+        );
+      }
+
+      // 5. Transcrever com OpenAI
+      const transcription = await this.llmService.transcribeAudio(
+        audioBuffer,
+        fileName,
+      );
+
+      return { transcription, s3AudioUrl };
+    } catch (error) {
+      console.error('Erro ao processar áudio:', error);
+      throw new Error('Falha ao processar mensagem de áudio');
+    }
+  }
+
+  /**
+   * Obtém a URL temporária do áudio do WhatsApp
+   * @param audioId ID do áudio
+   * @returns URL temporária para download
+   */
+  private async getWhatsAppAudioUrl(audioId: string): Promise<string> {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get(`https://graph.facebook.com/v23.0/${audioId}`, {
+          headers: {
+            Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
+          },
+        }),
+      );
+
+      return data.url;
+    } catch (error) {
+      console.error('Erro ao obter URL do áudio:', error);
+      throw new Error('Falha ao obter URL do áudio do WhatsApp');
+    }
+  }
+
+  /**
+   * Faz download do áudio da URL temporária
+   * @param audioUrl URL temporária do áudio
+   * @returns Buffer do áudio
+   */
+  private async downloadAudio(audioUrl: string): Promise<Buffer> {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get(audioUrl, {
+          headers: {
+            Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
+          },
+          responseType: 'arraybuffer',
+        }),
+      );
+
+      return Buffer.from(data);
+    } catch (error) {
+      console.error('Erro ao fazer download do áudio:', error);
+      throw new Error('Falha ao fazer download do áudio');
     }
   }
 
@@ -209,6 +347,7 @@ export class TicketsService {
         ticketId: createAITicketMessage.ticketId,
         senderName: ticket.agent.name,
         senderType: TicketMessageSender.AI,
+        messageType: TicketMessageType.TEXT,
       });
       this.chatGateway.emitNewMessage({
         ...ticketMessage,
@@ -293,6 +432,7 @@ export class TicketsService {
         ticketId: ticket.id,
         senderName: ticket.agent.name,
         senderType: TicketMessageSender.AI,
+        messageType: TicketMessageType.TEXT,
       });
       this.chatGateway.emitNewMessage(ticketMessage);
       await this.ticketMessageRepository.save(ticketMessage);
@@ -339,6 +479,7 @@ export class TicketsService {
       ticketId,
       senderType: TicketMessageSender.USER,
       senderIdentifier: 'OMNI',
+      messageType: TicketMessageType.TEXT,
     });
 
     await this.sendMessageToWhatsapp(
@@ -462,6 +603,7 @@ export class TicketsService {
    * @param message Conteúdo da mensagem
    * @param sender Tipo de remetente
    * @param senderName Nome do remetente
+   * @param messageType Tipo de mensagem
    */
   private async createNewMessage(
     senderIdentifier: string,
@@ -469,6 +611,7 @@ export class TicketsService {
     message: string,
     senderType: TicketMessageSender,
     senderName: string,
+    messageType: TicketMessageType,
   ) {
     const ticketMessage = this.ticketMessageRepository.create({
       senderIdentifier,
@@ -476,6 +619,7 @@ export class TicketsService {
       ticketId,
       senderName,
       senderType,
+      messageType,
     });
     await this.ticketMessageRepository.save(ticketMessage);
     this.chatGateway.emitNewMessage(ticketMessage);
@@ -517,6 +661,7 @@ export class TicketsService {
       messageContent,
       TicketMessageSender.AI,
       ticket.agent.name,
+      TicketMessageType.TEXT,
     );
 
     await this.sendMessageToWhatsapp(ticket, messageContent, ticket.agent.name);
@@ -546,10 +691,10 @@ export class TicketsService {
       userId: workflowUser?.id ? workflowUser?.id : undefined,
       agentId: workflowAgent?.id ? workflowAgent?.id : undefined,
     });
-    buffer.messages.forEach((message) => {
+    buffer.messages.forEach((messageData) => {
       messagesArray.push({
         role: 'user',
-        content: message,
+        content: messageData.content,
       });
     });
     const llmThread = await this.llmService.createThreads(messagesArray, {
@@ -571,6 +716,7 @@ export class TicketsService {
 
     let ticket: Ticket | null = await this.ticketRepository.findOneBy({
       customerId: buffer.customerId,
+      status: In([TicketStatus.AI, TicketStatus.IN_PROGRESS]),
     });
 
     let newTicket = false;
@@ -580,16 +726,21 @@ export class TicketsService {
     }
 
     const ticketMessages: TicketMessage[] = [];
-    for (const message of buffer.messages) {
-      ticketMessages.push(
-        await this.createNewMessage(
-          buffer.customerPhone,
-          ticket.id,
-          message,
-          TicketMessageSender.CUSTOMER,
-          buffer.customerName,
-        ),
-      );
+    for (const messageData of buffer.messages) {
+      // Se a mensagem original era um áudio, salva a URL do áudio
+      if (messageData.audioUrl) {
+        // Salva primeiro a mensagem de áudio
+        ticketMessages.push(
+          await this.createNewMessage(
+            buffer.customerPhone,
+            ticket.id,
+            messageData.audioUrl,
+            TicketMessageSender.CUSTOMER,
+            buffer.customerName,
+            TicketMessageType.AUDIO,
+          ),
+        );
+      }
     }
 
     if (newTicket) {
@@ -601,20 +752,55 @@ export class TicketsService {
     }
 
     if (ticket.status === TicketStatus.AI) {
-      let concatenatedMessages = '';
-      buffer.messages.forEach(async (message) => {
-        concatenatedMessages += message + '\n';
-      });
+      // Primeiro, salva todas as mensagens de texto no banco
+      for (const messageData of buffer.messages) {
+        if (!messageData.audioUrl) {
+          await this.createNewMessage(
+            buffer.customerPhone,
+            ticket.id,
+            messageData.content,
+            TicketMessageSender.CUSTOMER,
+            buffer.customerName,
+            TicketMessageType.TEXT,
+          );
+        }
+      }
 
+      // Concatena todas as mensagens para enviar ao LLM de uma vez
+      const concatenatedMessages = buffer.messages
+        .map((messageData) => messageData.content)
+        .join('\n\n');
+
+      // Envia a mensagem concatenada para o LLM
       await this.llmService.createMessage(ticket.llmThreadId, {
         role: 'user',
         content: concatenatedMessages,
       });
 
-      const llmAgentMessage = await this.llmService.createAndStreamRun(
-        ticket.llmThreadId,
-        buffer.workflow.workflowAgent?.llmAssistantId || 'gpt-4o-mini',
-      );
+      let llmAgentMessage;
+      try {
+        llmAgentMessage = await this.llmService.createAndStreamRun(
+          ticket.llmThreadId,
+          buffer.workflow.workflowAgent?.llmAssistantId || 'gpt-4o-mini',
+        );
+      } catch (error) {
+        console.error('Erro ao processar resposta da OpenAI:', error);
+        // Em caso de erro, envia uma mensagem padrão
+        await this.createAITicketMessage({
+          senderIdentifier: buffer.senderIdentifier,
+          content: 'Desculpe, estou enfrentando dificuldades técnicas no momento. Um agente humano será acionado para te ajudar.',
+          ticketId: ticket.id,
+        });
+        
+        // Transfere para atendimento humano
+        await this.ticketRepository.save({
+          ...ticket,
+          status: TicketStatus.IN_PROGRESS,
+          priorityLevel: TicketPriorityLevel.HIGH,
+        });
+        
+        return;
+      }
 
       if (
         typeof llmAgentMessage === 'object' &&

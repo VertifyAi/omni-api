@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { HttpModule } from '@nestjs/axios';
 import { OpenAIService } from './openai/openai.service';
+import { S3Service } from './aws/s3.service';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { OpenAIService } from './openai/openai.service';
     HttpModule,
   ],
   controllers: [IntegrationsController],
-  providers: [IntegrationsService, OpenAIService],
-  exports: [IntegrationsService, OpenAIService],
+  providers: [IntegrationsService, OpenAIService, S3Service],
+  exports: [IntegrationsService, OpenAIService, S3Service],
 })
 export class IntegrationsModule {}

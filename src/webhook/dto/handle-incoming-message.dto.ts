@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsString, ValidateNested, IsOptional, IsBoolean } from 'class-validator';
 
 class WebhookMetadataDto {
   @IsString()
@@ -28,6 +28,21 @@ class WebhookMessageTextDto {
   body: string;
 }
 
+class WebhookMessageAudioDto {
+  @IsString()
+  mime_type: string;
+
+  @IsString()
+  sha256: string;
+
+  @IsString()
+  id: string;
+
+  @IsBoolean()
+  @IsOptional()
+  voice?: boolean;
+}
+
 class WebhookMessageDto {
   @IsString()
   from: string;
@@ -40,7 +55,13 @@ class WebhookMessageDto {
 
   @ValidateNested()
   @Type(() => WebhookMessageTextDto)
-  text: WebhookMessageTextDto;
+  @IsOptional()
+  text?: WebhookMessageTextDto;
+
+  @ValidateNested()
+  @Type(() => WebhookMessageAudioDto)
+  @IsOptional()
+  audio?: WebhookMessageAudioDto;
 
   @IsString()
   type: string;
