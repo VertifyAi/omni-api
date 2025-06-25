@@ -22,7 +22,8 @@ export class TicketsController {
   @UseGuards(AuthGuard)
   @Get()
   async findAll(@Request() req) {
-    return await this.ticketsService.findAllTickets(req.user.companyId);
+    console.log(req.user.companyId, 'companyId controller');
+    return await this.ticketsService.findAllTickets(req.user);
   }
 
   @Post()
