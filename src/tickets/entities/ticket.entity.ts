@@ -87,7 +87,7 @@ export class Ticket {
   @JoinColumn({ name: 'company_id' })
   company: Company;
 
-  @ManyToOne(() => Customer, (customer) => customer.ticket)
+  @ManyToOne(() => Customer, (customer) => customer.tickets)
   @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 

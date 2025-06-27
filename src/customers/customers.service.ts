@@ -54,6 +54,7 @@ export class CustomersService {
   async findOne(companyId: number, id: string): Promise<Customer | null> {
     return this.customerRepository.findOne({
       where: { id: parseInt(id), companyId },
+      relations: ['tickets'],
     });
   }
 

@@ -48,5 +48,5 @@ export class Customer {
   deletedAt: Date;
 
   @OneToMany(() => Ticket, ticket => ticket.customer)
-  ticket: Ticket[];
+  tickets: Ticket[];
 }
