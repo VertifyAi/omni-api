@@ -132,6 +132,7 @@ export class TicketsService {
         createTicketMessageDto.entry[0].changes[0].value.contacts[0].profile
           .name,
         createTicketMessageDto.entry[0].changes[0].value.messages[0].from,
+        workflow.companyId,
       );
 
       messageObj = {
@@ -202,6 +203,7 @@ export class TicketsService {
     customerId: number,
     customerName: string,
     customerPhone: string,
+    companyId: number,
     ticketId?: number,
   ): Promise<{ transcription: string; s3AudioUrl: string }> {
     try {
@@ -227,6 +229,7 @@ export class TicketsService {
           TicketMessageSender.CUSTOMER,
           customerName,
           TicketMessageType.AUDIO,
+          companyId,
         );
       }
 
@@ -621,6 +624,7 @@ export class TicketsService {
     senderType: TicketMessageSender,
     senderName: string,
     messageType: TicketMessageType,
+    companyId: number,
   ) {
     const ticketMessage = this.ticketMessageRepository.create({
       senderIdentifier,
@@ -634,7 +638,7 @@ export class TicketsService {
     this.chatGateway.emitNewMessage(ticketMessage);
     this.eventEmitter.emit('ticket.message.created', {
       ticketId: ticketId,
-      companyId: ticketMessage.ticket.companyId,
+      companyId: companyId,
       messageContent: message,
       messageType,
       senderType,
@@ -680,6 +684,7 @@ export class TicketsService {
       TicketMessageSender.AI,
       ticket.agent.name,
       TicketMessageType.TEXT,
+      ticket.companyId,
     );
 
     await this.sendMessageToWhatsapp(ticket, messageContent, ticket.agent.name);
@@ -768,6 +773,7 @@ export class TicketsService {
             TicketMessageSender.CUSTOMER,
             buffer.customerName,
             TicketMessageType.AUDIO,
+            ticket.companyId,
           ),
         );
       } else {
@@ -779,6 +785,7 @@ export class TicketsService {
             TicketMessageSender.CUSTOMER,
             buffer.customerName,
             TicketMessageType.TEXT,
+            ticket.companyId,
           ),
         );
       }
