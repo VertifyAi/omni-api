@@ -8,6 +8,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { HttpModule } from '@nestjs/axios';
 import { OpenAIService } from './openai/openai.service';
 import { S3Service } from './aws/s3.service';
+import { FreshdeskModule } from './freshdesk/freshdesk.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { S3Service } from './aws/s3.service';
     JwtModule,
     ConfigModule,
     HttpModule,
+    FreshdeskModule,
   ],
   controllers: [IntegrationsController],
   providers: [IntegrationsService, OpenAIService, S3Service],

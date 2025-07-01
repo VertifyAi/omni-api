@@ -9,9 +9,11 @@ import {
 } from 'typeorm';
 import { Company } from 'src/companies/entities/company.entity';
 import { WhatsappIntegrationDto } from '../dto/whatsapp-integration.dto';
+import { FreshdeskIntegrationDto } from '../dto/freshdesk-integration.dto';
 
 export enum IntegrationType {
   WHATSAPP = 'WHATSAPP',
+  FRESHDESK = 'FRESHDESK',
 }
 
 @Entity('integrations')
@@ -28,11 +30,12 @@ export class Integration {
   @Column({
     type: 'json',
     transformer: {
-      to: (value: WhatsappIntegrationDto) => JSON.stringify(value),
+      to: (value: WhatsappIntegrationDto | FreshdeskIntegrationDto) =>
+        JSON.stringify(value),
       from: (value: string) => value,
     },
   })
-  config: WhatsappIntegrationDto;
+  config: WhatsappIntegrationDto | FreshdeskIntegrationDto;
 
   @Column()
   active: boolean;

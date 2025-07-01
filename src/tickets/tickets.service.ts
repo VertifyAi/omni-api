@@ -34,6 +34,13 @@ import { WorkflowsService } from 'src/workflows/workflows.service';
 import { Workflow } from 'src/workflows/entities/workflow.entity';
 import { TransferTicketDto } from './dto/transfer-ticket.dto';
 import { S3Service } from 'src/integrations/aws/s3.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+// import {
+//   TicketCreatedEvent,
+//   TicketMessageCreatedEvent,
+//   TicketStatusChangedEvent,
+//   HumanAssistanceRequestedEvent,
+// } from '../events/tickets.events';
 // import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
 
 interface MessageData {
@@ -77,6 +84,7 @@ export class TicketsService {
     private readonly llmService: OpenAIService,
     private readonly workflowsService: WorkflowsService,
     private readonly s3Service: S3Service,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -432,6 +440,7 @@ export class TicketsService {
         ticketId: ticket.id,
         senderName: ticket.agent.name,
         senderType: TicketMessageSender.AI,
+        senderIdentifier: 'OMNI',
         messageType: TicketMessageType.TEXT,
       });
       this.chatGateway.emitNewMessage(ticketMessage);
@@ -623,6 +632,15 @@ export class TicketsService {
     });
     await this.ticketMessageRepository.save(ticketMessage);
     this.chatGateway.emitNewMessage(ticketMessage);
+    this.eventEmitter.emit('ticket.message.created', {
+      ticketId: ticketId,
+      companyId: ticketMessage.ticket.companyId,
+      messageContent: message,
+      messageType,
+      senderType,
+      senderName,
+      senderIdentifier,
+    });
     return ticketMessage;
   }
 
@@ -682,6 +700,7 @@ export class TicketsService {
   private async createNewTicket(buffer: MessageBuffer): Promise<Ticket> {
     const messagesArray: OpenAIChatMessage[] = [];
     const { workflowAgent, workflowTeam, workflowUser } = buffer.workflow;
+
     const ticket: Ticket = this.ticketRepository.create({
       status: workflowAgent?.id ? TicketStatus.AI : TicketStatus.IN_PROGRESS,
       customerId: buffer.customerId,
@@ -691,17 +710,28 @@ export class TicketsService {
       userId: workflowUser?.id ? workflowUser?.id : undefined,
       agentId: workflowAgent?.id ? workflowAgent?.id : undefined,
     });
+
     buffer.messages.forEach((messageData) => {
       messagesArray.push({
         role: 'user',
         content: messageData.content,
       });
     });
+
     const llmThread = await this.llmService.createThreads(messagesArray, {
       companyId: String(buffer.companyId),
     });
     ticket.llmThreadId = llmThread.id;
+
     await this.ticketRepository.save(ticket);
+    this.eventEmitter.emit('ticket.created', {
+      ticketId: ticket.id,
+      companyId: ticket.companyId,
+      customerId: ticket.customerId,
+      customerName: ticket.customer.name,
+      customerPhone: ticket.customer.phone,
+      initialMessages: buffer.messages,
+    });
     return ticket;
   }
 
@@ -740,6 +770,17 @@ export class TicketsService {
             TicketMessageType.AUDIO,
           ),
         );
+      } else {
+        ticketMessages.push(
+          await this.createNewMessage(
+            buffer.customerPhone,
+            ticket.id,
+            messageData.content,
+            TicketMessageSender.CUSTOMER,
+            buffer.customerName,
+            TicketMessageType.TEXT,
+          ),
+        );
       }
     }
 
@@ -752,26 +793,10 @@ export class TicketsService {
     }
 
     if (ticket.status === TicketStatus.AI) {
-      // Primeiro, salva todas as mensagens de texto no banco
-      for (const messageData of buffer.messages) {
-        if (!messageData.audioUrl) {
-          await this.createNewMessage(
-            buffer.customerPhone,
-            ticket.id,
-            messageData.content,
-            TicketMessageSender.CUSTOMER,
-            buffer.customerName,
-            TicketMessageType.TEXT,
-          );
-        }
-      }
-
-      // Concatena todas as mensagens para enviar ao LLM de uma vez
       const concatenatedMessages = buffer.messages
         .map((messageData) => messageData.content)
         .join('\n\n');
 
-      // Envia a mensagem concatenada para o LLM
       await this.llmService.createMessage(ticket.llmThreadId, {
         role: 'user',
         content: concatenatedMessages,
@@ -788,17 +813,18 @@ export class TicketsService {
         // Em caso de erro, envia uma mensagem padrão
         await this.createAITicketMessage({
           senderIdentifier: buffer.senderIdentifier,
-          content: 'Desculpe, estou enfrentando dificuldades técnicas no momento. Um agente humano será acionado para te ajudar.',
+          content:
+            'Desculpe, estou enfrentando dificuldades técnicas no momento. Um agente humano será acionado para te ajudar.',
           ticketId: ticket.id,
         });
-        
+
         // Transfere para atendimento humano
         await this.ticketRepository.save({
           ...ticket,
           status: TicketStatus.IN_PROGRESS,
           priorityLevel: TicketPriorityLevel.HIGH,
         });
-        
+
         return;
       }
 

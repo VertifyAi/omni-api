@@ -5,17 +5,31 @@ import { Repository } from 'typeorm';
 import { Customer } from './entities/customer.entity';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 @Injectable()
 export class CustomersService {
   constructor(
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(createCustomerDto: CreateCustomerDto) {
     try {
       const customer = this.customerRepository.create(createCustomerDto);
       await this.customerRepository.save(customer);
+      
+      this.eventEmitter.emit('customer.created', {
+        customerId: customer.id,
+        companyId: customer.companyId,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        customerStreetName: customer.streetName,
+        customerStreetNumber: customer.streetNumber,
+        customerCity: customer.city,
+        customerState: customer.state,
+        customerPhone: customer.phone,
+      });
       return customer;
     } catch (error) {
       throw new InternalServerErrorException(`Error creating user: ${error}`);

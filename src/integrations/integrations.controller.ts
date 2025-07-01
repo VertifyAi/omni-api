@@ -11,6 +11,7 @@ import { IntegrationsService } from './integrations.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { WhatsappIntegrationDto } from './dto/whatsapp-integration.dto';
 import { IntegrationType } from './entities/integration.entity';
+import { FreshdeskIntegrationDto } from './dto/freshdesk-integration.dto';
 
 @UseGuards(AuthGuard)
 @Controller('integrations')
@@ -25,6 +26,17 @@ export class IntegrationsController {
     return await this.integrationsService.whatsappIntegration(
       req.user,
       whatsappIntegrationDto,
+    );
+  }
+
+  @Post('freshdesk')
+  async freshdeskIntegration(
+    @Request() req,
+    @Body() freshdeskIntegrationDto: FreshdeskIntegrationDto,
+  ) {
+    return await this.integrationsService.freshdeskIntegration(
+      req.user,
+      freshdeskIntegrationDto,
     );
   }
 
