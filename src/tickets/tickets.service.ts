@@ -743,8 +743,8 @@ export class TicketsService {
       ticketId: ticket.id,
       companyId: ticket.companyId,
       customerId: ticket.customerId,
-      customerName: ticket.customer.name,
-      customerPhone: ticket.customer.phone,
+      customerName: buffer.customerName,
+      customerPhone: buffer.customerPhone,
       initialMessages: buffer.messages,
     });
     return ticket;
