@@ -567,8 +567,8 @@ export class TicketsService {
       }
 
       newTicket = {
-        areaId: 0,
-        agentId: 0,
+        areaId: undefined,
+        agentId: undefined,
         userId: user.id,
         priorityLevel: transferTicketDto.priorityLevel,
       };
@@ -582,8 +582,8 @@ export class TicketsService {
       }
 
       newTicket = {
-        userId: 0,
-        agentId: 0,
+        userId: undefined,
+        agentId: undefined,
         areaId: team.id,
         priorityLevel: transferTicketDto.priorityLevel,
       };
@@ -597,8 +597,8 @@ export class TicketsService {
       }
 
       newTicket = {
-        areaId: 0,
-        userId: 0,
+        areaId: undefined,
+        userId: undefined,
         agentId: agent.id,
         priorityLevel: transferTicketDto.priorityLevel,
         status: TicketStatus.AI,
