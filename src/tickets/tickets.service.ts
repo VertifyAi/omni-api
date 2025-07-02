@@ -556,7 +556,12 @@ export class TicketsService {
     currentUser: User,
     ticketId: number,
   ) {
-    let newTicket: Partial<Ticket> = {};
+    // Usar QueryBuilder para controle total sobre o UPDATE
+    let updateQuery = this.ticketRepository
+      .createQueryBuilder()
+      .update(Ticket)
+      .where('id = :ticketId', { ticketId });
+
     if (transferTicketDto.userId) {
       const user = await this.usersService.findOneById(
         transferTicketDto.userId,
@@ -566,12 +571,14 @@ export class TicketsService {
         throw new NotFoundException('User not found');
       }
 
-      newTicket = {
-        areaId: undefined,
-        agentId: undefined,
+      // Transferir para usuário: limpar area e agent, definir user
+      updateQuery = updateQuery.set({
         userId: user.id,
+        areaId: () => 'NULL',
+        agentId: () => 'NULL',
         priorityLevel: transferTicketDto.priorityLevel,
-      };
+        status: TicketStatus.IN_PROGRESS,
+      });
     } else if (transferTicketDto.teamId) {
       const team = await this.teamsService.findOneById(
         transferTicketDto.teamId,
@@ -581,12 +588,14 @@ export class TicketsService {
         throw new NotFoundException('Team not found');
       }
 
-      newTicket = {
-        userId: undefined,
-        agentId: undefined,
+      // Transferir para área: limpar user e agent, definir area
+      updateQuery = updateQuery.set({
         areaId: team.id,
+        userId: () => 'NULL',
+        agentId: () => 'NULL',
         priorityLevel: transferTicketDto.priorityLevel,
-      };
+        status: TicketStatus.IN_PROGRESS,
+      });
     } else if (transferTicketDto.agentId) {
       const agent = await this.agentsService.findOneById(
         transferTicketDto.agentId,
@@ -596,16 +605,17 @@ export class TicketsService {
         throw new NotFoundException('Agent not found');
       }
 
-      newTicket = {
-        areaId: undefined,
-        userId: undefined,
+      // Transferir para agente: limpar area e user, definir agent
+      updateQuery = updateQuery.set({
         agentId: agent.id,
+        areaId: () => 'NULL',
+        userId: () => 'NULL',
         priorityLevel: transferTicketDto.priorityLevel,
         status: TicketStatus.AI,
-      };
+      });
     }
 
-    return await this.ticketRepository.update(ticketId, newTicket);
+    return await updateQuery.execute();
   }
 
   /**
