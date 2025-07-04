@@ -35,13 +35,7 @@ import { Workflow } from 'src/workflows/entities/workflow.entity';
 import { TransferTicketDto } from './dto/transfer-ticket.dto';
 import { S3Service } from 'src/integrations/aws/s3.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-// import {
-//   TicketCreatedEvent,
-//   TicketMessageCreatedEvent,
-//   TicketStatusChangedEvent,
-//   HumanAssistanceRequestedEvent,
-// } from '../events/tickets.events';
-// import { ChatWithVerAiDto } from 'src/verai/dto/chat-with-verai.dto';
+import { UpdateTicketDto } from './dto/update-ticket.dto';
 
 interface MessageData {
   content: string;
@@ -190,85 +184,6 @@ export class TicketsService {
   }
 
   /**
-   * Processa uma mensagem de áudio do WhatsApp
-   * @param audioId ID do áudio no WhatsApp
-   * @param customerId ID do cliente
-   * @param customerName Nome do cliente
-   * @param customerPhone Telefone do cliente
-   * @param ticketId ID do ticket (se existir)
-   * @returns Objeto com transcrição e URL do S3
-   */
-  private async processAudioMessage(
-    audioId: string,
-    customerId: number,
-    customerName: string,
-    customerPhone: string,
-    companyId: number,
-    ticketId?: number,
-  ): Promise<{ transcription: string; s3AudioUrl: string }> {
-    try {
-      // 1. Obter URL temporária do áudio
-      const audioUrl = await this.getWhatsAppAudioUrl(audioId);
-
-      // 2. Fazer download do áudio
-      const audioBuffer = await this.downloadAudio(audioUrl);
-
-      // 3. Salvar no S3
-      const fileName = `audio_${audioId}_${Date.now()}.ogg`;
-      const s3AudioUrl = await this.s3Service.uploadAudioFile(
-        audioBuffer,
-        fileName,
-      );
-
-      // 4. Salvar mensagem de áudio no banco se já tiver ticket
-      if (ticketId) {
-        await this.createNewMessage(
-          customerPhone,
-          ticketId,
-          s3AudioUrl,
-          TicketMessageSender.CUSTOMER,
-          customerName,
-          TicketMessageType.AUDIO,
-          companyId,
-        );
-      }
-
-      // 5. Transcrever com OpenAI
-      const transcription = await this.llmService.transcribeAudio(
-        audioBuffer,
-        fileName,
-      );
-
-      return { transcription, s3AudioUrl };
-    } catch (error) {
-      console.error('Erro ao processar áudio:', error);
-      throw new Error('Falha ao processar mensagem de áudio');
-    }
-  }
-
-  /**
-   * Obtém a URL temporária do áudio do WhatsApp
-   * @param audioId ID do áudio
-   * @returns URL temporária para download
-   */
-  private async getWhatsAppAudioUrl(audioId: string): Promise<string> {
-    try {
-      const { data } = await lastValueFrom(
-        this.httpService.get(`https://graph.facebook.com/v23.0/${audioId}`, {
-          headers: {
-            Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
-          },
-        }),
-      );
-
-      return data.url;
-    } catch (error) {
-      console.error('Erro ao obter URL do áudio:', error);
-      throw new Error('Falha ao obter URL do áudio do WhatsApp');
-    }
-  }
-
-  /**
    * Faz download do áudio da URL temporária
    * @param audioUrl URL temporária do áudio
    * @returns Buffer do áudio
@@ -410,6 +325,7 @@ export class TicketsService {
       throw new NotFoundException('Ticket not found');
     }
 
+    const oldStatus = ticket.status;
     const messageContent = await this.chooseMessageToSendWhenTicketIsChanged(
       changeTicketStatusDto,
       currentUser,
@@ -441,7 +357,7 @@ export class TicketsService {
       const ticketMessage = this.ticketMessageRepository.create({
         message: messageContent,
         ticketId: ticket.id,
-        senderName: ticket.agent.name,
+        senderName: ticket.agent?.name || currentUser.name,
         senderType: TicketMessageSender.AI,
         senderIdentifier: 'OMNI',
         messageType: TicketMessageType.TEXT,
@@ -456,12 +372,26 @@ export class TicketsService {
       throw new Error('Falha ao enviar mensagem pelo WhatsApp.');
     }
 
-    return await this.ticketRepository.save({
+    const updatedTicket = await this.ticketRepository.save({
       ...ticket,
       status: changeTicketStatusDto.status,
       userId: changeTicketStatusDto.userId,
       priorityLevel: changeTicketStatusDto.priorityLevel,
     });
+
+    // Emitir evento de mudança de status
+    this.eventEmitter.emit('ticket.status.changed', {
+      ticketId: updatedTicket.id,
+      companyId: updatedTicket.companyId,
+      newStatus: changeTicketStatusDto.status,
+      oldStatus: oldStatus,
+      changedByUserName: currentUser.name,
+      messageSentToCustomer: messageContent,
+      freshdeskTicketId: updatedTicket.freshdeskTicketId,
+      newPriorityLevel: changeTicketStatusDto.priorityLevel,
+    });
+
+    return updatedTicket;
   }
 
   /**
@@ -616,6 +546,97 @@ export class TicketsService {
     }
 
     return await updateQuery.execute();
+  }
+
+  /**
+   * Atualiza um ticket
+   * @param ticketId ID do ticket
+   * @param updateTicketDto Dados da atualização
+   */
+  async updateTicket(
+    ticketId: number,
+    updateTicketDto: Partial<UpdateTicketDto>,
+  ) {
+    return await this.ticketRepository.update(ticketId, updateTicketDto);
+  }
+
+  /**
+   * Obtém a URL temporária do áudio do WhatsApp
+   * @param audioId ID do áudio
+   * @returns URL temporária para download
+   */
+  private async getWhatsAppAudioUrl(audioId: string): Promise<string> {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get(`https://graph.facebook.com/v23.0/${audioId}`, {
+          headers: {
+            Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
+          },
+        }),
+      );
+
+      return data.url;
+    } catch (error) {
+      console.error('Erro ao obter URL do áudio:', error);
+      throw new Error('Falha ao obter URL do áudio do WhatsApp');
+    }
+  }
+
+  /**
+   * Processa uma mensagem de áudio do WhatsApp
+   * @param audioId ID do áudio no WhatsApp
+   * @param customerId ID do cliente
+   * @param customerName Nome do cliente
+   * @param customerPhone Telefone do cliente
+   * @param ticketId ID do ticket (se existir)
+   * @returns Objeto com transcrição e URL do S3
+   */
+  private async processAudioMessage(
+    audioId: string,
+    customerId: number,
+    customerName: string,
+    customerPhone: string,
+    companyId: number,
+    ticketId?: number,
+  ): Promise<{ transcription: string; s3AudioUrl: string }> {
+    try {
+      // 1. Obter URL temporária do áudio
+      const audioUrl = await this.getWhatsAppAudioUrl(audioId);
+
+      // 2. Fazer download do áudio
+      const audioBuffer = await this.downloadAudio(audioUrl);
+
+      // 3. Salvar no S3
+      const fileName = `audio_${audioId}_${Date.now()}.ogg`;
+      const s3AudioUrl = await this.s3Service.uploadAudioFile(
+        audioBuffer,
+        fileName,
+      );
+
+      // 4. Salvar mensagem de áudio no banco se já tiver ticket
+      if (ticketId) {
+        await this.createNewMessage(
+          customerPhone,
+          ticketId,
+          s3AudioUrl,
+          TicketMessageSender.CUSTOMER,
+          customerName,
+          TicketMessageType.AUDIO,
+          companyId,
+        );
+      }
+
+      // 5. Transcrever com OpenAI
+      const transcription = await this.llmService.transcribeAudio(
+        audioBuffer,
+        fileName,
+      );
+
+      return { transcription, s3AudioUrl };
+    } catch (error) {
+      console.error('Erro ao processar áudio:', error);
+      throw new Error('Falha ao processar mensagem de áudio');
+    }
   }
 
   /**

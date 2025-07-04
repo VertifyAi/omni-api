@@ -334,4 +334,317 @@ Este sistema foi projetado para ser robusto e auto-suficiente. Em caso de dúvid
 }
 ```
 
-**🎉 Pronto! Sua integração Freshdesk baseada em eventos está configurada e pronta para escalar!** 
+**🎉 Pronto! Sua integração Freshdesk baseada em eventos está configurada e pronta para escalar!**
+
+# Integração Freshdesk - Guia Completo
+
+## Visão Geral
+
+A integração Freshdesk permite sincronizar automaticamente tickets, contatos e mensagens entre o sistema Omni e o Freshdesk. Esta integração garante que todas as interações do WhatsApp sejam refletidas no sistema de help desk do Freshdesk.
+
+## Recursos Disponíveis
+
+### 1. Sincronização de Contatos
+- Busca contatos existentes no Freshdesk por número de telefone
+- Criação automática de contatos quando não existem
+- Vinculação de contatos aos tickets criados
+
+### 2. Criação de Tickets
+- Criação automática de tickets no Freshdesk quando um novo atendimento é iniciado
+- Formatação das mensagens iniciais na descrição do ticket
+- Configuração de campos personalizados para rastreamento
+
+### 3. Sincronização de Mensagens
+- Todas as mensagens trocadas são sincronizadas como respostas no Freshdesk
+- Identificação clara do remetente (Cliente, Agente, IA)
+- Formatação adequada das mensagens
+
+### 4. Atualização de Status
+- Sincronização automática de mudanças de status
+- Mapeamento inteligente entre status do Omni e Freshdesk
+- Controle granular sobre quais status sincronizar
+
+## Configuração
+
+### Pré-requisitos
+
+1. **Conta Freshdesk ativa** com permissões de API
+2. **API Key** do Freshdesk
+3. **Domínio** do Freshdesk (exemplo: `https://empresa.freshdesk.com`)
+
+### Obtenção da API Key
+
+1. Acesse sua conta Freshdesk
+2. Vá para **Perfil** > **Configurações**
+3. Copie a **API Key** exibida
+
+### Configuração no Sistema
+
+A integração é configurada através do endpoint de integrações:
+
+```json
+{
+  "type": "FRESHDESK",
+  "config": {
+    "domain": "https://sua-empresa.freshdesk.com",
+    "api_key": "sua-api-key-aqui",
+    "priority_analysis": true,
+    "ticket_creation": true,
+    "ticket_close": true,
+    "contact_sync": true
+  },
+  "isActive": true
+}
+```
+
+### Parâmetros de Configuração
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|-----------|------|-------------|-----------|
+| `domain` | string | ✅ | URL completa do seu Freshdesk |
+| `api_key` | string | ✅ | API Key do Freshdesk |
+| `priority_analysis` | boolean | ❌ | Habilita análise de prioridade automática |
+| `ticket_creation` | boolean | ❌ | Habilita criação automática de tickets |
+| `ticket_close` | boolean | ❌ | Habilita sincronização de fechamento |
+| `contact_sync` | boolean | ❌ | Habilita sincronização de contatos |
+
+**Valores padrão:** Todos os parâmetros opcionais são `false` por padrão.
+
+## Fluxo de Funcionamento
+
+### 1. Criação de Ticket
+
+```mermaid
+sequenceDiagram
+    participant W as WhatsApp
+    participant O as Omni
+    participant F as Freshdesk
+    
+    W->>O: Nova mensagem
+    O->>O: Criar ticket interno
+    O->>F: Verificar contato existente
+    alt Contato não existe
+        O->>F: Criar contato
+    end
+    O->>F: Criar ticket
+    F->>O: Retornar ID do ticket
+    O->>O: Salvar freshdeskTicketId
+```
+
+### 2. Sincronização de Mensagens
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant O as Omni
+    participant F as Freshdesk
+    
+    C->>O: Enviar mensagem
+    O->>O: Processar mensagem
+    O->>F: Adicionar resposta ao ticket
+    Note over F: Mensagem formatada com remetente
+```
+
+### 3. Atualização de Status
+
+```mermaid
+sequenceDiagram
+    participant A as Agente
+    participant O as Omni
+    participant F as Freshdesk
+    
+    A->>O: Alterar status do ticket
+    O->>O: Atualizar status interno
+    O->>F: Atualizar status no Freshdesk
+    Note over F: Status mapeado automaticamente
+```
+
+## Mapeamento de Status
+
+| Status Omni | Status Freshdesk | Valor |
+|-------------|------------------|--------|
+| `AI` | Aberto | 2 |
+| `IN_PROGRESS` | Pendente | 3 |
+| `CLOSED` | Fechado | 5 |
+
+## Eventos Sincronizados
+
+### ticket.created
+- **Quando:** Novo ticket é criado no sistema
+- **Ação:** Cria ticket correspondente no Freshdesk
+- **Dependências:** `ticket_creation` deve estar habilitado
+
+### ticket.message.created
+- **Quando:** Nova mensagem é adicionada ao ticket
+- **Ação:** Adiciona resposta ao ticket no Freshdesk
+- **Formato:** `**NomeRemetente** (TipoRemetente):\n\nConteúdo`
+
+### ticket.status.changed
+- **Quando:** Status do ticket é alterado
+- **Ação:** Atualiza status no Freshdesk
+- **Dependências:** `ticket_close` para fechamentos
+
+### customer.created
+- **Quando:** Novo cliente é criado no sistema
+- **Ação:** Cria contato no Freshdesk
+- **Dependências:** `contact_sync` deve estar habilitado
+
+## Campos Personalizados
+
+O sistema adiciona automaticamente os seguintes campos personalizados aos tickets:
+
+```json
+{
+  "custom_fields": {
+    "omnify_ticket_id": 123,
+    "omnify_company_id": 456,
+    "customer_phone": "+5511999999999"
+  }
+}
+```
+
+## Tratamento de Erros
+
+### Logs de Erro
+- Todos os erros são registrados com detalhes completos
+- Inclui status HTTP e dados da resposta
+- Não interrompe o fluxo normal do sistema
+
+### Cenários de Erro Comuns
+
+1. **API Key inválida**
+   - Status: 401
+   - Ação: Verificar configuração
+
+2. **Domínio incorreto**
+   - Status: 404
+   - Ação: Verificar URL do Freshdesk
+
+3. **Campos obrigatórios ausentes**
+   - Status: 400
+   - Ação: Verificar estrutura dos dados
+
+4. **Limite de rate exceeded**
+   - Status: 429
+   - Ação: Aguardar e tentar novamente
+
+## Monitoramento
+
+### Logs Disponíveis
+
+```bash
+# Ver logs da integração
+grep "Freshdesk" /var/log/omni/app.log
+
+# Filtrar por eventos específicos
+grep "ticket.created" /var/log/omni/app.log
+grep "ticket.message.created" /var/log/omni/app.log
+grep "ticket.status.changed" /var/log/omni/app.log
+```
+
+### Métricas Importantes
+
+- Taxa de sucesso na criação de tickets
+- Tempo de resposta da API Freshdesk
+- Número de erros de sincronização
+- Volume de mensagens sincronizadas
+
+## Solução de Problemas
+
+### Problema: Tickets não são criados no Freshdesk
+
+**Causas possíveis:**
+1. `ticket_creation` está desabilitado
+2. API Key inválida
+3. Domínio incorreto
+4. Campos obrigatórios ausentes
+
+**Solução:**
+1. Verificar configuração da integração
+2. Testar API Key manualmente
+3. Verificar logs de erro detalhados
+
+### Problema: Mensagens não são sincronizadas
+
+**Causas possíveis:**
+1. Ticket não possui `freshdeskTicketId`
+2. Ticket não existe no Freshdesk
+3. Permissões insuficientes
+
+**Solução:**
+1. Verificar se o ticket foi criado corretamente
+2. Confirmar permissões da API Key
+3. Verificar logs de erro
+
+### Problema: Status não é atualizado
+
+**Causas possíveis:**
+1. `ticket_close` desabilitado para fechamentos
+2. Ticket não existe no Freshdesk
+3. Status não mapeado corretamente
+
+**Solução:**
+1. Verificar configuração de sincronização
+2. Confirmar mapeamento de status
+3. Verificar logs de erro
+
+## Exemplo de Uso
+
+### Configuração Básica
+
+```javascript
+// Configurar integração via API
+const integrationConfig = {
+  type: 'FRESHDESK',
+  config: {
+    domain: 'https://minhaempresa.freshdesk.com',
+    api_key: 'minha-api-key',
+    ticket_creation: true,
+    contact_sync: true,
+    ticket_close: true
+  },
+  isActive: true
+};
+
+// Enviar via POST para /integrations
+```
+
+### Configuração Avançada
+
+```javascript
+const advancedConfig = {
+  type: 'FRESHDESK',
+  config: {
+    domain: 'https://minhaempresa.freshdesk.com',
+    api_key: 'minha-api-key',
+    priority_analysis: true,    // Análise de prioridade
+    ticket_creation: true,      // Criação automática
+    ticket_close: true,         // Sincronização de fechamento
+    contact_sync: true          // Sincronização de contatos
+  },
+  isActive: true
+};
+```
+
+## Limitações
+
+1. **Rate Limiting:** Freshdesk possui limites de API que devem ser respeitados
+2. **Campos Personalizados:** Alguns campos podem precisar ser configurados manualmente no Freshdesk
+3. **Permissões:** A API Key deve ter permissões suficientes para todas as operações
+4. **Sincronização Unidirecional:** Mudanças no Freshdesk não são sincronizadas de volta
+
+## Suporte
+
+Para problemas ou dúvidas relacionadas à integração Freshdesk:
+
+1. Verificar logs de erro detalhados
+2. Confirmar configurações de API
+3. Testar conectividade com Freshdesk
+4. Contactar suporte técnico se necessário
+
+## Atualizações
+
+- **v1.0.0:** Implementação inicial
+- **v1.1.0:** Melhorias no tratamento de erros
+- **v1.2.0:** Adição de campos personalizados
+- **v1.3.0:** Configuração granular de sincronização 

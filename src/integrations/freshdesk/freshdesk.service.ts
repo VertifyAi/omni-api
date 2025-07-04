@@ -8,7 +8,6 @@ export interface FreshdeskTicket {
   subject: string;
   description: string;
   status: number;
-  priority: number;
   source: number;
   type?: string;
   requester_id?: number;
@@ -56,6 +55,9 @@ export class FreshdeskService {
       return response.data;
     } catch (error) {
       this.logger.error(`Erro ao criar contato no Freshdesk: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`);
+      }
       throw error;
     }
   }
@@ -72,6 +74,9 @@ export class FreshdeskService {
       return response.data.length > 0 ? response.data[0] : null;
     } catch (error) {
       this.logger.error(`Erro ao buscar contato no Freshdesk: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`);
+      }
       return null;
     }
   }
@@ -90,6 +95,9 @@ export class FreshdeskService {
       return response.data;
     } catch (error) {
       this.logger.error(`Erro ao criar ticket no Freshdesk: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`);
+      }
       throw error;
     }
   }
@@ -104,43 +112,32 @@ export class FreshdeskService {
         )
       );
 
-      this.logger.log(`Status do ticket ${ticketId} atualizado no Freshdesk`);
+      this.logger.log(`Status do ticket ${ticketId} atualizado no Freshdesk para ${status}`);
     } catch (error) {
       this.logger.error(`Erro ao atualizar ticket no Freshdesk: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`);
+      }
       throw error;
     }
   }
 
-  async addNoteToTicket(ticketId: number, note: string, config: FreshdeskIntegrationDto): Promise<void> {
+  async addReplyToTicket(freshdeskTicketId: number, message: string, config: FreshdeskIntegrationDto): Promise<void> {
     try {
       await lastValueFrom(
         this.httpService.post(
-          `${config.domain}/api/v2/tickets/${ticketId}/notes`,
-          { body: note, private: false },
-          { headers: this.getAuthHeaders(config.api_key) }
-        )
-      );
-
-      this.logger.log(`Nota adicionada ao ticket ${ticketId} no Freshdesk`);
-    } catch (error) {
-      this.logger.error(`Erro ao adicionar nota no Freshdesk: ${error.message}`);
-      throw error;
-    }
-  }
-
-  async addReplyToTicket(ticketId: number, message: string, config: FreshdeskIntegrationDto): Promise<void> {
-    try {
-      await lastValueFrom(
-        this.httpService.post(
-          `${config.domain}/api/v2/tickets/${ticketId}/reply`,
+          `${config.domain}/api/v2/tickets/${freshdeskTicketId}/reply`,
           { body: message },
           { headers: this.getAuthHeaders(config.api_key) }
         )
       );
 
-      this.logger.log(`Resposta adicionada ao ticket ${ticketId} no Freshdesk`);
+      this.logger.log(`Resposta adicionada ao ticket ${freshdeskTicketId} no Freshdesk`);
     } catch (error) {
       this.logger.error(`Erro ao adicionar resposta no Freshdesk: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`);
+      }
       throw error;
     }
   }

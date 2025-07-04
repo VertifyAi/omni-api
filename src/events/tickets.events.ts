@@ -39,17 +39,6 @@ export class TicketStatusChangedEvent {
   ) {}
 }
 
-export class HumanAssistanceRequestedEvent {
-  constructor(
-    public readonly ticketId: number,
-    public readonly companyId: number,
-    public readonly freshdeskTicketId: number,
-    public readonly priorityLevel: TicketPriorityLevel,
-    public readonly targetTeamName: string,
-    public readonly agentName: string,
-  ) {}
-}
-
 export class CustomerCreatedEvent {
   constructor(
     public readonly customerId: number,

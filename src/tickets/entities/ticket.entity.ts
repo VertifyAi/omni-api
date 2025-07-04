@@ -53,6 +53,9 @@ export class Ticket {
   @Column({ name: 'llm_thread_id', nullable: true })
   llmThreadId: string;
 
+  @Column({ name: 'freshdesk_ticket_id', nullable: true })
+  freshdeskTicketId: number;
+
   @Column({ name: 'user_id', nullable: true })
   userId: number;
 

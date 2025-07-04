@@ -180,7 +180,10 @@ export class IntegrationsService {
    * @param freshdeskIntegrationDto - Dados da integração
    * @returns Integração criada
    */
-  async freshdeskIntegration(currentUser: User, freshdeskIntegrationDto: FreshdeskIntegrationDto) {
+  async freshdeskIntegration(
+    currentUser: User,
+    freshdeskIntegrationDto: FreshdeskIntegrationDto,
+  ) {
     let integration = await this.integrationRepository.findOneBy({
       companyId: currentUser.companyId,
       type: IntegrationType.FRESHDESK,
@@ -210,12 +213,32 @@ export class IntegrationsService {
   }
 
   /**
+   * Busca integração ativa por empresa e tipo
+   * @param companyId - ID da empresa
+   * @param type - Tipo de integração
+   * @returns Integração ativa
+   */
+  async findActiveIntegrationByCompanyIdAndType(
+    companyId: number,
+    type: IntegrationType,
+  ): Promise<Integration | null> {
+    return await this.integrationRepository.findOneBy({
+      companyId,
+      type,
+      active: true,
+    });
+  }
+
+  /**
    * Verifica se uma integração específica está ativa para uma empresa
    * @param companyId - ID da empresa
    * @param type - Tipo de integração
    * @returns true se a integração estiver ativa
    */
-  async isIntegrationActive(companyId: number, type: IntegrationType): Promise<boolean> {
+  async isIntegrationActive(
+    companyId: number,
+    type: IntegrationType,
+  ): Promise<boolean> {
     const integration = await this.integrationRepository.findOneBy({
       companyId,
       type,

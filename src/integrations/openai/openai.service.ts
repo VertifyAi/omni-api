@@ -148,6 +148,7 @@ export class OpenAIService {
       const requestBody = {
         assistant_id: assistantIdOrModel,
         stream: true,
+        tool_choice: { type: 'tool', tool: { type: 'file_search' } },
       };
 
       const { data } = await lastValueFrom(
@@ -222,9 +223,11 @@ export class OpenAIService {
 
             if (eventData && eventName) {
               const parsedData = JSON.parse(eventData);
-              
+
               // Log para debug
-              console.log(`Evento: ${eventName}, Objeto: ${parsedData.object}, Status: ${parsedData.status}`);
+              console.log(
+                `Evento: ${eventName}, Objeto: ${parsedData.object}, Status: ${parsedData.status}`,
+              );
 
               // Verifica se é uma ação que requer intervenção humana
               if (
@@ -369,7 +372,7 @@ export class OpenAIService {
               },
             },
             temperature: 0.01,
-            top_p: 1.0,
+            top_p: 0.01,
             model: 'gpt-4o-mini',
           },
           {
@@ -698,7 +701,8 @@ export class OpenAIService {
 
       const { data } = await lastValueFrom(
         this.httpService.post(
-          this.configService.get('OPENAI_API_BASEURL') + '/audio/transcriptions',
+          this.configService.get('OPENAI_API_BASEURL') +
+            '/audio/transcriptions',
           formData,
           {
             headers: {

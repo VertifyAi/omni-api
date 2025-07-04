@@ -11,29 +11,17 @@ export class FreshdeskIntegrationDto {
 
   @IsBoolean()
   @IsOptional()
-  auto_responses?: boolean;
-
-  @IsBoolean()
-  @IsOptional()
   priority_analysis?: boolean;
 
   @IsBoolean()
   @IsOptional()
-  business_hours_check?: boolean;
+  ticket_creation?: boolean;
 
   @IsBoolean()
   @IsOptional()
-  ai_integration?: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  ticket_transfer?: boolean;
+  ticket_close?: boolean;
 
   @IsBoolean()
   @IsOptional()
   contact_sync?: boolean;
-
-  @IsString()
-  @IsOptional()
-  phone?: string;
 }
