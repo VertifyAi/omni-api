@@ -148,7 +148,7 @@ export class OpenAIService {
       const requestBody = {
         assistant_id: assistantIdOrModel,
         stream: true,
-        tool_choice: { type: 'tool', tool: { type: 'file_search' } },
+        tool_choice: 'file_search',
       };
 
       const { data } = await lastValueFrom(
