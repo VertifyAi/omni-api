@@ -1,10 +1,16 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { CompaniesService } from '../companies/companies.service';
 import { JwtService } from '@nestjs/jwt';
 import { User, UserRole } from 'src/users/entities/user.entity';
 import { SignUpDto } from './dto/sign-up.dto';
 import * as bcrypt from 'bcrypt';
+import { lastValueFrom } from 'rxjs';
+import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class AuthService {
@@ -12,6 +18,7 @@ export class AuthService {
     private usersService: UsersService,
     private companiesService: CompaniesService,
     private jwtService: JwtService,
+    private httpService: HttpService,
   ) {}
 
   async signUp(signUpDto: SignUpDto): Promise<{ access_token: string }> {
@@ -21,7 +28,9 @@ export class AuthService {
     }
 
     // Verificar se o usuário já existe
-    const existingUser = await this.usersService.findOneByEmail(signUpDto.email);
+    const existingUser = await this.usersService.findOneByEmail(
+      signUpDto.email,
+    );
     if (existingUser) {
       throw new BadRequestException('Usuário já existe com este email');
     }
@@ -39,17 +48,23 @@ export class AuthService {
 
     // Criar o usuário administrador
     const fullName = `${signUpDto.firstName} ${signUpDto.lastName}`;
-    const user = await this.usersService.create({
-      name: fullName,
-      email: signUpDto.email,
-      password: signUpDto.password,
-      role: UserRole.ADMIN,
-      streetName: signUpDto.address.streetName,
-      streetNumber: signUpDto.address.streetNumber,
-      city: signUpDto.address.city,
-      state: signUpDto.address.state,
-      phone: signUpDto.phone,
-    }, company.id);
+    const user = await this.usersService.create(
+      {
+        name: fullName,
+        email: signUpDto.email,
+        password: signUpDto.password,
+        role: UserRole.ADMIN,
+        streetName: signUpDto.address.streetName,
+        streetNumber: signUpDto.address.streetNumber,
+        city: signUpDto.address.city,
+        state: signUpDto.address.state,
+        phone: signUpDto.phone,
+      },
+      company.id,
+    );
+
+    // Enviar email de boas vindas
+    await this.sendWelcomeEmail(user.email, signUpDto.firstName);
 
     // Gerar token JWT
     const payload = {
@@ -99,5 +114,18 @@ export class AuthService {
     return {
       access_token: await this.jwtService.signAsync(payload),
     };
+  }
+
+  private async sendWelcomeEmail(email: string, firstName: string) {
+    const response = await lastValueFrom(
+      this.httpService.post(
+        'https://n8n.vertify.com.br/webhook/5439fb6a-5fc6-45eb-8358-06e8aa67b891',
+        {
+          email,
+          firstName,
+        },
+      ),
+    );
+    return response.data;
   }
 }

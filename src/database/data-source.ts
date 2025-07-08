@@ -13,6 +13,7 @@ const dataSource = new DataSource({
   entities: ['src/**/*.entity{.ts,.js}'],
   migrations: ['src/database/migrations/*{.ts,.js}'],
   synchronize: false,
+  logging: true,
 });
 
 module.exports = dataSource; 

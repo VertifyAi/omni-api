@@ -11,9 +11,11 @@ import {
   JoinTable,
   JoinColumn,
   OneToOne,
+  OneToMany,
 } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { Workflow } from 'src/workflows/entities/workflow.entity';
+import { Ticket } from 'src/tickets/entities/ticket.entity';
 
 @Entity('areas')
 export class Team {
@@ -62,4 +64,7 @@ export class Team {
   @OneToOne(() => Workflow, (workflow) => workflow.workflowTeam)
   @JoinColumn({ name: 'workflow_id' })
   workflow: Workflow;
+
+  @OneToMany(() => Ticket, (ticket) => ticket.area)
+  tickets: Ticket[];
 }

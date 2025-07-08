@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -12,12 +12,16 @@ import { UsersService } from 'src/users/users.service';
 import { CompaniesService } from 'src/companies/companies.service';
 import { UtilsModule } from 'src/utils/utils.module';
 import { Company } from 'src/companies/entities/company.entity';
+import { HttpModule } from '@nestjs/axios';
+import { TicketsModule } from 'src/tickets/tickets.module';
 @Module({
   imports: [
     ConfigModule,
     UsersModule,
     CompaniesModule,
     UtilsModule,
+    HttpModule,
+    forwardRef(() => TicketsModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

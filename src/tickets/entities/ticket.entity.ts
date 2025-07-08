@@ -13,6 +13,7 @@ import { TicketMessage } from './ticket-message.entity';
 import { Company } from 'src/companies/entities/company.entity';
 import { Customer } from 'src/customers/entities/customer.entity';
 import { Agent } from 'src/agents/entities/agent.entity';
+import { Team } from 'src/teams/entities/teams.entity';
 
 export enum TicketStatus {
   AI = 'AI',
@@ -71,6 +72,9 @@ export class Ticket {
   @Column({ name: 'company_id' })
   companyId: number;
 
+  @Column({ name: 'last_message_at', nullable: true })
+  lastMessageAt: Date;
+
   @Column({ name: 'closed_at', nullable: true })
   closedAt: Date;
 
@@ -97,4 +101,8 @@ export class Ticket {
   @ManyToOne(() => Agent, (agent) => agent.tickets)
   @JoinColumn({ name: 'agent_id' })
   agent: Agent;
+
+  @ManyToOne(() => Team, (team) => team.tickets)
+  @JoinColumn({ name: 'area_id' })
+  area: Team;
 }

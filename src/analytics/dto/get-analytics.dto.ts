@@ -1,21 +1,15 @@
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsDateString } from 'class-validator';
 
 export class GetAnalyticsDto {
-  @IsNumber()
+  @IsDateString()
   @IsOptional()
-  startDate: string = new Date(
-    Date.now() - 7 * 24 * 60 * 60 * 1000,
-  ).toISOString();
+  startDate?: string;
+
+  @IsDateString()
+  @IsOptional()
+  endDate?: string;
 
   @IsString()
   @IsOptional()
-  endDate: string = new Date().toISOString();
-
-  @IsNumber()
-  @IsOptional()
-  teamId?: number;
-
-  @IsNumber()
-  @IsOptional()
-  userId?: number;
+  teamId?: string;
 }

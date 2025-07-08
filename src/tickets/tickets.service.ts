@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository, In, FindOptionsWhere } from 'typeorm';
+import { Between, Repository, In, FindOptionsWhere, IsNull } from 'typeorm';
 import {
   Ticket,
   TicketPriorityLevel,
@@ -60,7 +60,7 @@ interface MessageBuffer {
 @Injectable()
 export class TicketsService {
   private messageBuffers: Map<string, MessageBuffer> = new Map();
-  private readonly BUFFER_TIMEOUT = 10000; // 10 segundos
+  private readonly BUFFER_TIMEOUT = 15000; // 15 segundos
 
   constructor(
     @InjectRepository(Ticket)
@@ -144,6 +144,21 @@ export class TicketsService {
       };
     } else {
       throw new Error('Tipo de mensagem não suportado');
+    }
+
+    // Verifica se é uma avaliação (número de 1 a 5)
+    const isRating = this.isRatingMessage(message);
+    if (isRating) {
+      const recentClosedTicket = await this.findRecentClosedTicketWithoutScore(
+        customer.id,
+        workflow.companyId,
+      );
+
+      if (recentClosedTicket) {
+        await this.updateTicketScore(recentClosedTicket.id, isRating);
+        await this.sendRatingConfirmationMessage(recentClosedTicket, isRating);
+        return;
+      }
     }
 
     const bufferKey = `${customer.id}-${workflow.companyId}`;
@@ -372,12 +387,16 @@ export class TicketsService {
       throw new Error('Falha ao enviar mensagem pelo WhatsApp.');
     }
 
-    const updatedTicket = await this.ticketRepository.save({
-      ...ticket,
-      status: changeTicketStatusDto.status,
-      userId: changeTicketStatusDto.userId,
-      priorityLevel: changeTicketStatusDto.priorityLevel,
-    });
+    // Atualizar propriedades do ticket
+    ticket.status = changeTicketStatusDto.status;
+    ticket.userId = changeTicketStatusDto.userId;
+    ticket.priorityLevel = changeTicketStatusDto.priorityLevel;
+
+    if (changeTicketStatusDto.status === TicketStatus.CLOSED) {
+      ticket.closedAt = new Date();
+    }
+
+    const updatedTicket = await this.ticketRepository.save(ticket);
 
     // Emitir evento de mudança de status
     this.eventEmitter.emit('ticket.status.changed', {
@@ -446,6 +465,17 @@ export class TicketsService {
     getAnalyticsDto: GetAnalyticsDto,
     companyId: number,
   ) {
+    // Garantir que ambas as datas tenham valores válidos
+    if (!getAnalyticsDto.startDate) {
+      getAnalyticsDto.startDate = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+    }
+
+    if (!getAnalyticsDto.endDate) {
+      getAnalyticsDto.endDate = new Date(Date.now()).toISOString();
+    }
+
     const where = {
       companyId,
       createdAt: Between(
@@ -455,24 +485,90 @@ export class TicketsService {
     };
 
     if (getAnalyticsDto.teamId) {
-      where['teamId'] = getAnalyticsDto.teamId;
+      where['areaId'] = parseInt(getAnalyticsDto.teamId);
     }
 
-    if (getAnalyticsDto.userId) {
-      where['userId'] = getAnalyticsDto.userId;
-    }
-
-    return await this.ticketRepository.find({
+    const tickets = await this.ticketRepository.find({
       where,
       relations: {
         company: true,
         customer: true,
         ticketMessages: true,
+        area: true,
       },
       order: {
         createdAt: 'DESC',
       },
     });
+
+    const previousPeriodStart = new Date(getAnalyticsDto.startDate);
+    previousPeriodStart.setDate(
+      previousPeriodStart.getDate() -
+        new Date(getAnalyticsDto.startDate).getDate(),
+    );
+    const previousPeriodEnd = new Date(getAnalyticsDto.endDate);
+    previousPeriodEnd.setDate(
+      previousPeriodEnd.getDate() - new Date(getAnalyticsDto.endDate).getDate(),
+    );
+
+    const previousPeriodWhere = {
+      companyId,
+      status: TicketStatus.CLOSED,
+      createdAt: Between(previousPeriodStart, previousPeriodEnd),
+    };
+
+    if (getAnalyticsDto.teamId) {
+      previousPeriodWhere['areaId'] = parseInt(getAnalyticsDto.teamId);
+    }
+
+    const previousPeriodTickets = await this.ticketRepository.find({
+      where: previousPeriodWhere,
+    });
+
+    return {
+      tickets,
+      previousPeriodTickets,
+    };
+  }
+
+  /**
+   * Calcula o tempo médio de resolução de tickets humanos
+   * @param companyId ID da empresa
+   * @param startDate Data de início
+   * @param endDate Data de fim
+   * @returns Tempo médio de resolução de tickets humanos
+   */
+  async calculateAverageHumanResolutionTime(
+    companyId: number,
+    startDate: Date,
+    endDate: Date,
+    teamId?: string,
+  ) {
+    const where = {
+      companyId,
+      status: TicketStatus.CLOSED,
+      agentId: IsNull(),
+      createdAt: Between(startDate, endDate),
+    };
+
+    if (teamId) {
+      where['areaId'] = parseInt(teamId);
+    }
+
+    const tickets = await this.ticketRepository.find({
+      where,
+    });
+
+    // Calcular o tempo médio em de resolução de tickets humanos
+    const totalTime = tickets.reduce((acc, ticket) => {
+      if (ticket.closedAt && ticket.createdAt) {
+        const time = ticket.closedAt.getTime() - ticket.createdAt.getTime();
+        return acc + time;
+      }
+      return acc;
+    }, 0);
+
+    return totalTime / tickets.length;
   }
 
   /**
@@ -666,6 +762,13 @@ export class TicketsService {
       messageType,
     });
     await this.ticketMessageRepository.save(ticketMessage);
+
+    if (senderType === TicketMessageSender.CUSTOMER) {
+      await this.ticketRepository.update(ticketId, {
+        lastMessageAt: new Date(),
+      });
+    }
+
     this.chatGateway.emitNewMessage(ticketMessage);
     this.eventEmitter.emit('ticket.message.created', {
       ticketId: ticketId,
@@ -745,6 +848,7 @@ export class TicketsService {
       areaId: workflowTeam?.id ? workflowTeam?.id : undefined,
       userId: workflowUser?.id ? workflowUser?.id : undefined,
       agentId: workflowAgent?.id ? workflowAgent?.id : undefined,
+      score: 5,
     });
 
     buffer.messages.forEach((messageData) => {
@@ -974,4 +1078,185 @@ Sua opinião é muito importante para nós!`;
       return `A partir deste momento, nosso agente humano ${currentUser.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
     }
   }
+
+  /**
+   * Verifica se uma mensagem é uma avaliação (número de 1 a 5)
+   * @param message Conteúdo da mensagem
+   * @returns Número da avaliação ou null se não for uma avaliação
+   */
+  private isRatingMessage(message: string): number | null {
+    const cleanMessage = message.trim();
+    const rating = parseInt(cleanMessage, 10);
+
+    if (rating >= 1 && rating <= 5 && cleanMessage === rating.toString()) {
+      return rating;
+    }
+
+    return null;
+  }
+
+  /**
+   * Busca um ticket fechado recentemente sem score
+   * @param customerId ID do cliente
+   * @param companyId ID da empresa
+   * @returns Ticket fechado recente ou null
+   */
+  private async findRecentClosedTicketWithoutScore(
+    customerId: number,
+    companyId: number,
+  ): Promise<Ticket | null> {
+    const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000);
+
+    return await this.ticketRepository.findOne({
+      where: {
+        customerId,
+        companyId,
+        status: TicketStatus.CLOSED,
+        score: 0, // Assumindo que tickets sem avaliação têm score 0
+        updatedAt: Between(oneHourAgo, new Date()),
+      },
+      relations: ['customer', 'agent'],
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Atualiza o score de um ticket
+   * @param ticketId ID do ticket
+   * @param score Score da avaliação
+   */
+  private async updateTicketScore(
+    ticketId: number,
+    score: number,
+  ): Promise<void> {
+    await this.ticketRepository.update(ticketId, { score });
+  }
+
+  /**
+   * Envia mensagem de confirmação da avaliação
+   * @param ticket Ticket avaliado
+   * @param rating Nota da avaliação
+   */
+  private async sendRatingConfirmationMessage(
+    ticket: Ticket,
+    rating: number,
+  ): Promise<void> {
+    const ratingText = {
+      1: 'Péssimo',
+      2: 'Ruim',
+      3: 'Regular',
+      4: 'Bom',
+      5: 'Excelente',
+    };
+
+    const message = `Obrigado pela sua avaliação! Você nos deu nota ${rating} (${ratingText[rating]}).
+    
+${rating >= 4 ? 'Ficamos felizes que você tenha gostado do nosso atendimento! 🎉' : 'Obrigado pelo feedback! Vamos trabalhar para melhorar ainda mais nosso atendimento. 💪'}
+
+Se precisar de mais alguma coisa, estaremos aqui para ajudar!`;
+
+    await this.sendMessageToWhatsapp(ticket, message, 'Sistema de Avaliação');
+  }
+
+  /**
+   * Calcula o score de satisfação médio dos tickets
+   * @param companyId ID da empresa
+   * @param startDate Data de início (opcional)
+   * @param endDate Data de fim (opcional)
+   * @returns Objeto com estatísticas de satisfação
+   */
+  async calculateSatisfactionScore(
+    companyId: number,
+    startDate?: Date,
+    endDate?: Date,
+    teamId?: string,
+  ): Promise<{
+    averageScore: number;
+    totalRatedTickets: number;
+    ratingDistribution: { [key: number]: number };
+    satisfactionPercentage: number;
+  }> {
+    const whereConditions: FindOptionsWhere<Ticket> = {
+      companyId,
+      status: TicketStatus.CLOSED,
+    };
+
+    if (startDate && endDate) {
+      whereConditions.createdAt = Between(startDate, endDate);
+    }
+
+    if (teamId) {
+      whereConditions.areaId = parseInt(teamId);
+    }
+
+    const ratedTickets = await this.ticketRepository.find({
+      where: whereConditions,
+      select: ['score'],
+    });
+
+    // Filtrar apenas tickets que foram avaliados (score > 0)
+    const actuallyRatedTickets = ratedTickets.filter(
+      (ticket) => ticket.score > 0,
+    );
+
+    if (actuallyRatedTickets.length === 0) {
+      return {
+        averageScore: 0,
+        totalRatedTickets: 0,
+        ratingDistribution: {},
+        satisfactionPercentage: 0,
+      };
+    }
+
+    const totalScore = actuallyRatedTickets.reduce(
+      (sum, ticket) => sum + ticket.score,
+      0,
+    );
+    const averageScore = totalScore / actuallyRatedTickets.length;
+
+    // Distribuição das notas
+    const ratingDistribution = actuallyRatedTickets.reduce(
+      (dist, ticket) => {
+        dist[ticket.score] = (dist[ticket.score] || 0) + 1;
+        return dist;
+      },
+      {} as { [key: number]: number },
+    );
+
+    // Porcentagem de satisfação (notas 4 e 5)
+    const satisfiedCustomers = actuallyRatedTickets.filter(
+      (ticket) => ticket.score >= 4,
+    ).length;
+    const satisfactionPercentage =
+      (satisfiedCustomers / actuallyRatedTickets.length) * 100;
+
+    return {
+      averageScore: Math.round(averageScore * 100) / 100, // Arredonda para 2 casas decimais
+      totalRatedTickets: actuallyRatedTickets.length,
+      ratingDistribution,
+      satisfactionPercentage: Math.round(satisfactionPercentage * 100) / 100,
+    };
+  }
+
+  // /**
+  //  * Cronjob para fechar tickets que não receberam mensagem há mais de 24 horas
+  //  */
+  // async closeTicketsWithoutMessage() {
+  //   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  //   const tickets = await this.ticketRepository.find({
+  //     where: {
+  //       lastMessageAt: Between(oneDayAgo, new Date()),
+  //     },
+  //     relations: ['company'],
+  //   });
+
+  //   for (const ticket of tickets) {
+  //     await this.ticketRepository.update(ticket.id, {
+  //       status: TicketStatus.CLOSED,
+  //     });
+
+  //     // Enviar mensagem de fechamento
+  //     await this.sendMessageToWhatsapp(ticket, 'Ticket fechado', 'Sistema');
+  //   }
+  // }
 }
