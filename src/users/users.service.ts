@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -8,12 +8,16 @@ import { FindAllUsersDto } from './dto/find-all-users.dto';
 import { GenericFilterDto } from 'src/utils/dto/generic-filter.dto';
 import { PageService } from 'src/utils/services/page.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { TicketsService } from 'src/tickets/tickets.service';
+import { TicketStatus } from 'src/tickets/entities/ticket.entity';
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly pageService: PageService,
+    @Inject(forwardRef(() => TicketsService))
+    private readonly ticketsService: TicketsService,
   ) {}
 
   async findOneByEmail(email: string) {
@@ -106,5 +110,79 @@ export class UsersService {
       }
       throw new Error(`Erro ao atualizar usuário: ${error.message}`);
     }
+  }
+
+  /**
+   * Obtém o ranking de usuários por score
+   * @param companyId ID da empresa
+   * @param startDate Data de início
+   * @param endDate Data de fim
+   * @returns Ranking de usuários por score
+   */
+  async getRankingUsersByScore(companyId: number, startDate: Date, endDate: Date, teamId?: string) {
+    // Buscar tickets fechados no período especificado
+    const tickets = await this.ticketsService.getTicketsAnalytics(
+      {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        teamId,
+      },
+      companyId,
+    );
+
+    // Filtrar apenas tickets fechados com score válido e que têm userId
+    const closedTicketsWithScore = tickets.tickets.filter(
+      (ticket) => 
+        ticket.status === TicketStatus.CLOSED && 
+        ticket.score !== null && 
+        ticket.score !== undefined && 
+        ticket.score > 0 &&
+        ticket.userId !== null && 
+        ticket.userId !== undefined
+    );
+
+    // Agrupar tickets por userId e calcular média do score
+    const userScores = closedTicketsWithScore.reduce((acc, ticket) => {
+      const userId = ticket.userId;
+      
+      if (!acc[userId]) {
+        acc[userId] = { totalScore: 0, count: 0 };
+      }
+      
+      acc[userId].totalScore += ticket.score;
+      acc[userId].count += 1;
+      
+      return acc;
+    }, {} as Record<number, { totalScore: number; count: number }>);
+
+    // Buscar informações dos usuários e calcular score médio
+    const userRankings: Array<{
+      userId: number;
+      name: string;
+      email: string;
+      averageScore: number;
+      totalTickets: number;
+    }> = [];
+    
+    for (const [userIdStr, scoreData] of Object.entries(userScores)) {
+      const userId = parseInt(userIdStr);
+      const user = await this.findOneById(userId, companyId);
+      
+      if (user) {
+        const averageScore = scoreData.totalScore / scoreData.count;
+        userRankings.push({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          averageScore: parseFloat(averageScore.toFixed(2)),
+          totalTickets: scoreData.count,
+        });
+      }
+    }
+
+    // Ordenar por maior score médio e retornar os top 10
+    return userRankings
+      .sort((a, b) => b.averageScore - a.averageScore)
+      .slice(0, 10);
   }
 }
