@@ -21,6 +21,7 @@ export class CustomersService {
       const profilePicture = await this.getWhatsappProfilePictureAndSaveOnS3(
         createCustomerDto.phone,
       );
+      console.log('profilePicture', profilePicture);
       const customer = this.customerRepository.create({
         ...createCustomerDto,
         profilePicture,
@@ -119,6 +120,9 @@ export class CustomersService {
   }
 
   private async getWhatsappProfilePictureAndSaveOnS3(phone: string) {
+    console.log('phone', phone);
+    console.log('process.env.RAPIDAPI_KEY', process.env.RAPIDAPI_KEY);
+    console.log('process.env.RAPIDAPI_HOST', process.env.RAPIDAPI_HOST);
     const response = await axios.get(
       `https://whatsapp-profile-pic.p.rapidapi.com/wspic/url?phone=${phone}`,
       {
