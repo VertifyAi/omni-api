@@ -137,7 +137,32 @@ export class CustomersService {
         },
       );
       
-      const profilePictureUrl = response.data.data.profile_pic_url;
+      // Debug: Log completo da resposta
+      console.log('Full API response:', JSON.stringify(response.data, null, 2));
+      
+      // Validar se a resposta tem a estrutura esperada
+      if (!response.data) {
+        console.log('API response data is undefined');
+        return null;
+      }
+      
+      // Verificar diferentes estruturas possíveis da resposta
+      let profilePictureUrl: string | null = null;
+      
+      if (response.data.data && response.data.data.profile_pic_url) {
+        profilePictureUrl = response.data.data.profile_pic_url;
+      } else if (response.data.profile_pic_url) {
+        profilePictureUrl = response.data.profile_pic_url;
+      } else if (response.data.url) {
+        profilePictureUrl = response.data.url;
+      } else if (response.data.picture_url) {
+        profilePictureUrl = response.data.picture_url;
+      } else {
+        console.log('Profile picture URL not found in API response structure');
+        console.log('Available keys in response.data:', Object.keys(response.data));
+        return null;
+      }
+      
       console.log('profilePictureUrl', profilePictureUrl);
       
       // Validar se a URL da imagem é válida
@@ -183,6 +208,10 @@ export class CustomersService {
       return s3Url;
     } catch (error) {
       console.error('Error downloading WhatsApp profile picture:', error);
+      if (error.response) {
+        console.error('Error response status:', error.response.status);
+        console.error('Error response data:', error.response.data);
+      }
       // Retornar null em caso de erro para não quebrar o processo de criação do cliente
       return null;
     }
