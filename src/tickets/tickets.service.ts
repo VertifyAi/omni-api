@@ -1237,26 +1237,4 @@ Se precisar de mais alguma coisa, estaremos aqui para ajudar!`;
       satisfactionPercentage: Math.round(satisfactionPercentage * 100) / 100,
     };
   }
-
-  // /**
-  //  * Cronjob para fechar tickets que não receberam mensagem há mais de 24 horas
-  //  */
-  // async closeTicketsWithoutMessage() {
-  //   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  //   const tickets = await this.ticketRepository.find({
-  //     where: {
-  //       lastMessageAt: Between(oneDayAgo, new Date()),
-  //     },
-  //     relations: ['company'],
-  //   });
-
-  //   for (const ticket of tickets) {
-  //     await this.ticketRepository.update(ticket.id, {
-  //       status: TicketStatus.CLOSED,
-  //     });
-
-  //     // Enviar mensagem de fechamento
-  //     await this.sendMessageToWhatsapp(ticket, 'Ticket fechado', 'Sistema');
-  //   }
-  // }
 }

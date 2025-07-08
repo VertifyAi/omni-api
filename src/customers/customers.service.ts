@@ -6,6 +6,8 @@ import { Customer } from './entities/customer.entity';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import axios from 'axios';
+import { S3Service } from 'src/integrations/aws/s3.service';
 @Injectable()
 export class CustomersService {
   constructor(
@@ -16,9 +18,15 @@ export class CustomersService {
 
   async create(createCustomerDto: CreateCustomerDto) {
     try {
-      const customer = this.customerRepository.create(createCustomerDto);
+      const profilePicture = await this.getWhatsappProfilePictureAndSaveOnS3(
+        createCustomerDto.phone,
+      );
+      const customer = this.customerRepository.create({
+        ...createCustomerDto,
+        profilePicture,
+      });
       await this.customerRepository.save(customer);
-      
+
       this.eventEmitter.emit('customer.created', {
         customerId: customer.id,
         companyId: customer.companyId,
@@ -29,6 +37,7 @@ export class CustomersService {
         customerCity: customer.city,
         customerState: customer.state,
         customerPhone: customer.phone,
+        profilePicture: profilePicture,
       });
       return customer;
     } catch (error) {
@@ -107,5 +116,29 @@ export class CustomersService {
         `Erro ao atualizar cliente: ${error.message}`,
       );
     }
+  }
+
+  private async getWhatsappProfilePictureAndSaveOnS3(phone: string) {
+    const response = await axios.get(
+      `https://whatsapp-profile-pic.p.rapidapi.com/wspic/url?phone=${phone}`,
+      {
+        headers: {
+          'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+          'x-rapidapi-host': process.env.RAPIDAPI_HOST,
+        },
+      },
+    );
+    const profilePictureUrl = response.data.data.profile_pic_url;
+    const profilePicture = await axios.get(profilePictureUrl, {
+      responseType: 'arraybuffer',
+    });
+    const s3Service = new S3Service();
+    const s3Url = await s3Service.uploadFile({
+      originalname: phone,
+      buffer: profilePicture.data,
+      mimetype: profilePicture.headers['content-type'],
+      size: profilePicture.data.length,
+    });
+    return s3Url;
   }
 }

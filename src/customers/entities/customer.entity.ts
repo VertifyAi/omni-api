@@ -35,6 +35,9 @@ export class Customer {
   @Column()
   phone: string;
 
+  @Column({ name: 'profile_picture' })
+  profilePicture: string;
+
   @Column({ name: 'company_id' })
   companyId: number;
 
