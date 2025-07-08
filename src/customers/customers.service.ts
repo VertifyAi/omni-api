@@ -24,7 +24,7 @@ export class CustomersService {
       console.log('profilePicture', profilePicture);
       const customer = this.customerRepository.create({
         ...createCustomerDto,
-        profilePicture,
+        profilePicture: profilePicture || '',
       });
       await this.customerRepository.save(customer);
 
@@ -38,7 +38,7 @@ export class CustomersService {
         customerCity: customer.city,
         customerState: customer.state,
         customerPhone: customer.phone,
-        profilePicture: profilePicture,
+        profilePicture: profilePicture || '',
       });
       return customer;
     } catch (error) {
@@ -119,30 +119,72 @@ export class CustomersService {
     }
   }
 
-  private async getWhatsappProfilePictureAndSaveOnS3(phone: string) {
-    console.log('phone', phone);
-    console.log('process.env.RAPIDAPI_KEY', process.env.RAPIDAPI_KEY);
-    console.log('process.env.RAPIDAPI_HOST', process.env.RAPIDAPI_HOST);
-    const response = await axios.get(
-      `https://whatsapp-profile-pic.p.rapidapi.com/wspic/url?phone=${phone}`,
-      {
-        headers: {
-          'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-          'x-rapidapi-host': process.env.RAPIDAPI_HOST,
+  private async getWhatsappProfilePictureAndSaveOnS3(phone: string): Promise<string | null> {
+    try {
+      console.log('phone', phone);
+      console.log('process.env.RAPIDAPI_KEY', process.env.RAPIDAPI_KEY);
+      console.log('process.env.RAPIDAPI_HOST', process.env.RAPIDAPI_HOST);
+      
+      // Primeira requisição para obter a URL da imagem de perfil
+      const response = await axios.get(
+        `https://whatsapp-profile-pic.p.rapidapi.com/wspic/url?phone=${phone}`,
+        {
+          headers: {
+            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+            'x-rapidapi-host': process.env.RAPIDAPI_HOST,
+          },
+          timeout: 10000, // 10 segundos de timeout
         },
-      },
-    );
-    const profilePictureUrl = response.data.data.profile_pic_url;
-    const profilePicture = await axios.get(profilePictureUrl, {
-      responseType: 'arraybuffer',
-    });
-    const s3Service = new S3Service();
-    const s3Url = await s3Service.uploadFile({
-      originalname: phone,
-      buffer: profilePicture.data,
-      mimetype: profilePicture.headers['content-type'],
-      size: profilePicture.data.length,
-    });
-    return s3Url;
+      );
+      
+      const profilePictureUrl = response.data.data.profile_pic_url;
+      console.log('profilePictureUrl', profilePictureUrl);
+      
+      // Validar se a URL da imagem é válida
+      if (!profilePictureUrl || profilePictureUrl === '' || profilePictureUrl === 'null') {
+        console.log('Profile picture URL not found or invalid');
+        return null;
+      }
+      
+      // Segunda requisição para baixar a imagem
+      const profilePicture = await axios.get(profilePictureUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000, // 15 segundos de timeout para download
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+          'Cache-Control': 'no-cache',
+        },
+      });
+      
+      console.log('profilePicture downloaded successfully');
+      console.log('Content-Type:', profilePicture.headers['content-type']);
+      console.log('Content-Length:', profilePicture.data.length);
+      
+      // Validar se a imagem foi baixada corretamente
+      if (!profilePicture.data || profilePicture.data.length === 0) {
+        console.log('Profile picture data is empty');
+        return null;
+      }
+      
+      // Definir mimetype padrão se não estiver disponível
+      const mimetype = profilePicture.headers['content-type'] || 'image/jpeg';
+      
+      const s3Service = new S3Service();
+      const s3Url = await s3Service.uploadFile({
+        originalname: `${phone}_profile_pic`,
+        buffer: profilePicture.data,
+        mimetype: mimetype,
+        size: profilePicture.data.length,
+      });
+      
+      console.log('Image uploaded to S3:', s3Url);
+      return s3Url;
+    } catch (error) {
+      console.error('Error downloading WhatsApp profile picture:', error);
+      // Retornar null em caso de erro para não quebrar o processo de criação do cliente
+      return null;
+    }
   }
 }
