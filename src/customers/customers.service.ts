@@ -137,37 +137,19 @@ export class CustomersService {
         },
       );
       
-      // Debug: Log completo da resposta
-      console.log('Full API response:', JSON.stringify(response.data, null, 2));
-      
-      // Validar se a resposta tem a estrutura esperada
-      if (!response.data) {
-        console.log('API response data is undefined');
-        return null;
-      }
-      
-      // Verificar diferentes estruturas possíveis da resposta
-      let profilePictureUrl: string | null = null;
-      
-      if (response.data.data && response.data.data.profile_pic_url) {
-        profilePictureUrl = response.data.data.profile_pic_url;
-      } else if (response.data.profile_pic_url) {
-        profilePictureUrl = response.data.profile_pic_url;
-      } else if (response.data.url) {
-        profilePictureUrl = response.data.url;
-      } else if (response.data.picture_url) {
-        profilePictureUrl = response.data.picture_url;
-      } else {
-        console.log('Profile picture URL not found in API response structure');
-        console.log('Available keys in response.data:', Object.keys(response.data));
-        return null;
-      }
-      
+      // A API retorna diretamente a URL da imagem como string
+      const profilePictureUrl = response.data;
       console.log('profilePictureUrl', profilePictureUrl);
       
       // Validar se a URL da imagem é válida
-      if (!profilePictureUrl || profilePictureUrl === '' || profilePictureUrl === 'null') {
+      if (!profilePictureUrl || typeof profilePictureUrl !== 'string' || profilePictureUrl.trim() === '') {
         console.log('Profile picture URL not found or invalid');
+        return null;
+      }
+      
+      // Validar se é uma URL válida
+      if (!profilePictureUrl.startsWith('http')) {
+        console.log('Profile picture URL is not a valid HTTP URL');
         return null;
       }
       
