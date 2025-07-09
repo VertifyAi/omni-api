@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { UploadFileDto } from 'src/teams/dto/upload-image.dto';
 
 @Injectable()
@@ -56,8 +60,17 @@ export class S3Service {
       Body: audioBuffer,
       ContentType: contentType,
     });
-    
+
     await this.s3.send(command);
     return `https://omni-whatsapp-audios.s3.us-east-2.amazonaws.com/audios/${fileName}`;
+  }
+
+  async deleteFile(fileUrl: string) {
+    const key = fileUrl.split('/').pop();
+    const command = new DeleteObjectCommand({
+      Bucket: 'omni-profile-images',
+      Key: key,
+    });
+    await this.s3.send(command);
   }
 }

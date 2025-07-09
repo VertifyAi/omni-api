@@ -199,29 +199,6 @@ export class TicketsService {
   }
 
   /**
-   * Faz download do áudio da URL temporária
-   * @param audioUrl URL temporária do áudio
-   * @returns Buffer do áudio
-   */
-  private async downloadAudio(audioUrl: string): Promise<Buffer> {
-    try {
-      const { data } = await lastValueFrom(
-        this.httpService.get(audioUrl, {
-          headers: {
-            Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
-          },
-          responseType: 'arraybuffer',
-        }),
-      );
-
-      return Buffer.from(data);
-    } catch (error) {
-      console.error('Erro ao fazer download do áudio:', error);
-      throw new Error('Falha ao fazer download do áudio');
-    }
-  }
-
-  /**
    * Obtém todos os tickets
    * @param currentUser Usuário atual
    * @returns Tickets
@@ -654,6 +631,137 @@ export class TicketsService {
     updateTicketDto: Partial<UpdateTicketDto>,
   ) {
     return await this.ticketRepository.update(ticketId, updateTicketDto);
+  }
+
+  /**
+   * Calcula o score de satisfação médio dos tickets
+   * @param companyId ID da empresa
+   * @param startDate Data de início (opcional)
+   * @param endDate Data de fim (opcional)
+   * @returns Objeto com estatísticas de satisfação
+   */
+  async calculateSatisfactionScore(
+    companyId: number,
+    startDate?: Date,
+    endDate?: Date,
+    teamId?: string,
+  ): Promise<{
+    averageScore: number;
+    totalRatedTickets: number;
+    ratingDistribution: { [key: number]: number };
+    satisfactionPercentage: number;
+  }> {
+    const whereConditions: FindOptionsWhere<Ticket> = {
+      companyId,
+      status: TicketStatus.CLOSED,
+    };
+
+    if (startDate && endDate) {
+      whereConditions.createdAt = Between(startDate, endDate);
+    }
+
+    if (teamId) {
+      whereConditions.areaId = parseInt(teamId);
+    }
+
+    const ratedTickets = await this.ticketRepository.find({
+      where: whereConditions,
+      select: ['score'],
+    });
+
+    // Filtrar apenas tickets que foram avaliados (score > 0)
+    const actuallyRatedTickets = ratedTickets.filter(
+      (ticket) => ticket.score > 0,
+    );
+
+    if (actuallyRatedTickets.length === 0) {
+      return {
+        averageScore: 0,
+        totalRatedTickets: 0,
+        ratingDistribution: {},
+        satisfactionPercentage: 0,
+      };
+    }
+
+    const totalScore = actuallyRatedTickets.reduce(
+      (sum, ticket) => sum + ticket.score,
+      0,
+    );
+    const averageScore = totalScore / actuallyRatedTickets.length;
+
+    // Distribuição das notas
+    const ratingDistribution = actuallyRatedTickets.reduce(
+      (dist, ticket) => {
+        dist[ticket.score] = (dist[ticket.score] || 0) + 1;
+        return dist;
+      },
+      {} as { [key: number]: number },
+    );
+
+    // Porcentagem de satisfação (notas 4 e 5)
+    const satisfiedCustomers = actuallyRatedTickets.filter(
+      (ticket) => ticket.score >= 4,
+    ).length;
+    const satisfactionPercentage =
+      (satisfiedCustomers / actuallyRatedTickets.length) * 100;
+
+    return {
+      averageScore: Math.round(averageScore * 100) / 100, // Arredonda para 2 casas decimais
+      totalRatedTickets: actuallyRatedTickets.length,
+      ratingDistribution,
+      satisfactionPercentage: Math.round(satisfactionPercentage * 100) / 100,
+    };
+  }
+
+  /**
+   * Deleta um ticket
+   * @param companyId ID da empresa
+   * @param id ID do ticket
+   */
+  async delete(companyId: number, id: string) {
+    const ticket = await this.ticketRepository.findOneBy({
+      id: parseInt(id),
+      companyId,
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    const ticketMessages = await this.ticketMessageRepository.find({
+      where: { ticketId: parseInt(id) },
+    });
+
+    ticketMessages.forEach(async (ticketMessage) => {
+      if (ticketMessage.messageType === TicketMessageType.AUDIO) {
+        await this.s3Service.deleteFile(ticketMessage.message);
+      }
+      await this.ticketMessageRepository.delete(ticketMessage.id);
+    });
+    await this.ticketRepository.delete(parseInt(id));
+  }
+
+  /**
+   * Faz download do áudio da URL temporária
+   * @param audioUrl URL temporária do áudio
+   * @returns Buffer do áudio
+   */
+  private async downloadAudio(audioUrl: string): Promise<Buffer> {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get(audioUrl, {
+          headers: {
+            Authorization: `Bearer ${process.env.META_ACESS_TOKEN}`,
+          },
+          responseType: 'arraybuffer',
+        }),
+      );
+
+      return Buffer.from(data);
+    } catch (error) {
+      console.error('Erro ao fazer download do áudio:', error);
+      throw new Error('Falha ao fazer download do áudio');
+    }
   }
 
   /**
@@ -1156,85 +1264,5 @@ ${rating >= 4 ? 'Ficamos felizes que você tenha gostado do nosso atendimento! �
 Se precisar de mais alguma coisa, estaremos aqui para ajudar!`;
 
     await this.sendMessageToWhatsapp(ticket, message, 'Sistema de Avaliação');
-  }
-
-  /**
-   * Calcula o score de satisfação médio dos tickets
-   * @param companyId ID da empresa
-   * @param startDate Data de início (opcional)
-   * @param endDate Data de fim (opcional)
-   * @returns Objeto com estatísticas de satisfação
-   */
-  async calculateSatisfactionScore(
-    companyId: number,
-    startDate?: Date,
-    endDate?: Date,
-    teamId?: string,
-  ): Promise<{
-    averageScore: number;
-    totalRatedTickets: number;
-    ratingDistribution: { [key: number]: number };
-    satisfactionPercentage: number;
-  }> {
-    const whereConditions: FindOptionsWhere<Ticket> = {
-      companyId,
-      status: TicketStatus.CLOSED,
-    };
-
-    if (startDate && endDate) {
-      whereConditions.createdAt = Between(startDate, endDate);
-    }
-
-    if (teamId) {
-      whereConditions.areaId = parseInt(teamId);
-    }
-
-    const ratedTickets = await this.ticketRepository.find({
-      where: whereConditions,
-      select: ['score'],
-    });
-
-    // Filtrar apenas tickets que foram avaliados (score > 0)
-    const actuallyRatedTickets = ratedTickets.filter(
-      (ticket) => ticket.score > 0,
-    );
-
-    if (actuallyRatedTickets.length === 0) {
-      return {
-        averageScore: 0,
-        totalRatedTickets: 0,
-        ratingDistribution: {},
-        satisfactionPercentage: 0,
-      };
-    }
-
-    const totalScore = actuallyRatedTickets.reduce(
-      (sum, ticket) => sum + ticket.score,
-      0,
-    );
-    const averageScore = totalScore / actuallyRatedTickets.length;
-
-    // Distribuição das notas
-    const ratingDistribution = actuallyRatedTickets.reduce(
-      (dist, ticket) => {
-        dist[ticket.score] = (dist[ticket.score] || 0) + 1;
-        return dist;
-      },
-      {} as { [key: number]: number },
-    );
-
-    // Porcentagem de satisfação (notas 4 e 5)
-    const satisfiedCustomers = actuallyRatedTickets.filter(
-      (ticket) => ticket.score >= 4,
-    ).length;
-    const satisfactionPercentage =
-      (satisfiedCustomers / actuallyRatedTickets.length) * 100;
-
-    return {
-      averageScore: Math.round(averageScore * 100) / 100, // Arredonda para 2 casas decimais
-      totalRatedTickets: actuallyRatedTickets.length,
-      ratingDistribution,
-      satisfactionPercentage: Math.round(satisfactionPercentage * 100) / 100,
-    };
   }
 }
