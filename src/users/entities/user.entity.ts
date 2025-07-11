@@ -55,7 +55,7 @@ export class User {
   @Column()
   phone: string;
 
-  @Column({ name: 'area_id' })
+  @Column({ name: 'area_id', nullable: true })
   areaId: number;
 
   @Column({ name: 'company_id' })

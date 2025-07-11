@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, InternalServerErrorException } from '@nestjs/common';
 import { TicketsService } from 'src/tickets/tickets.service';
 import { TeamsService } from 'src/teams/teams.service';
 import { User, UserRole } from 'src/users/entities/user.entity';
@@ -22,6 +22,11 @@ export class AnalyticsService {
 
     // Buscar os tickets baseado nas permissões
     const tickets = await this.getTicketsBasedOnRole(getAnalyticsDto, user);
+
+    // Verificar se tickets foi retornado corretamente
+    if (!tickets) {
+      throw new InternalServerErrorException('Erro ao buscar tickets');
+    }
 
     // Pegar a satisfação geral dos tickets
     const startDate = getAnalyticsDto.startDate
@@ -104,10 +109,68 @@ export class AnalyticsService {
         areaName,
         quantity,
       })),
-      scoreAverageByMonth: await this.generateLast12MonthsScores(user),
+      scoreAverageByMonth: await this.generateLast12MonthsScores(user, getAnalyticsDto.teamId),
       rankingUsersByScore,
       tickets,
     };
+  }
+
+  async exportPdf(
+    user: User,
+    getAnalyticsDto: GetAnalyticsDto,
+  ): Promise<Buffer> {
+    // Buscar dados do analytics
+    const analyticsData = await this.getAnalytics(getAnalyticsDto, user);
+
+    // Criar documento PDF
+    const doc = new PDFDocument({
+      margin: 50,
+      size: 'A4',
+    });
+
+    // Buffer para armazenar o PDF
+    const buffers: Buffer[] = [];
+    doc.on('data', buffers.push.bind(buffers));
+    doc.on('end', () => {});
+
+    // Definir datas do período
+    const startDate = getAnalyticsDto.startDate
+      ? new Date(getAnalyticsDto.startDate)
+      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const endDate = getAnalyticsDto.endDate
+      ? new Date(getAnalyticsDto.endDate)
+      : new Date();
+
+    // Cabeçalho
+    this.addHeader(doc, startDate, endDate, user.company?.name || 'Empresa');
+
+    // Métricas principais
+    this.addMainMetrics(doc, analyticsData);
+
+    // Gráfico de satisfação por mês
+    this.addSatisfactionChart(doc, analyticsData.scoreAverageByMonth);
+
+    // Distribuição por canal
+    this.addChannelDistribution(doc, analyticsData.quantityOfTicketByChannel);
+
+    // Distribuição por equipes
+    this.addTeamDistribution(doc, analyticsData.quantityOfTicketByTeams);
+
+    // Ranking de usuários
+    this.addUserRanking(doc, analyticsData.rankingUsersByScore);
+
+    // Rodapé
+    this.addFooter(doc);
+
+    // Finalizar documento
+    doc.end();
+
+    // Aguardar conclusão e retornar buffer
+    return new Promise((resolve) => {
+      doc.on('end', () => {
+        resolve(Buffer.concat(buffers));
+      });
+    });
   }
 
   private async validateAccess(getAnalyticsDto: GetAnalyticsDto, user: User) {
@@ -116,41 +179,22 @@ export class AnalyticsService {
         // ADMINISTRADOR: pode acessar tudo da empresa
         break;
 
-      case UserRole.MANAGER:
-        // GESTOR: pode acessar suas métricas e da equipe que gerencia
+      case "MANAGER":
+        // GESTOR: pode acessar métricas da equipe que gerencia
         if (getAnalyticsDto.teamId) {
           const team = await this.teamsService.findOne(
             parseInt(getAnalyticsDto.teamId),
           );
           if (team.ownerId !== user.id) {
             throw new ForbiddenException(
-              'Você só pode acessar métricas da equipe que você gerencia',
+              'Você só pode acessar métricas das equipes que você gerencia',
             );
           }
+        } else {
+          throw new ForbiddenException(
+            'Você só pode acessar métricas das equipes que você gerencia',
+          );
         }
-
-        // if (getAnalyticsDto.userId && getAnalyticsDto.userId !== user.id) {
-        //   // Verificar se o usuário solicitado faz parte da equipe gerenciada
-        //   const managedTeams = await this.teamsService.findAll(user.companyId);
-        //   const userManagedTeams = managedTeams.filter(
-        //     (team) => team.ownerId === user.id,
-        //   );
-
-        //   let hasAccess = false;
-        //   for (const team of userManagedTeams) {
-        //     const teamMembers = team.members?.map((member) => member.id) || [];
-        //     if (teamMembers.includes(getAnalyticsDto.userId)) {
-        //       hasAccess = true;
-        //       break;
-        //     }
-        //   }
-
-        //   if (!hasAccess) {
-        //     throw new ForbiddenException(
-        //       'Você só pode acessar métricas de usuários da sua equipe',
-        //     );
-        //   }
-        // }
         break;
 
       // case UserRole.USER:
@@ -173,7 +217,7 @@ export class AnalyticsService {
     }
   }
 
-  private async generateLast12MonthsScores(user: User) {
+  private async generateLast12MonthsScores(user: User, teamId: string | undefined) {
     const monthNames = [
       'Janeiro',
       'Fevereiro',
@@ -202,9 +246,16 @@ export class AnalyticsService {
     const analyticsDto = {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
-    };
+      teamId,
+    } as GetAnalyticsDto;
 
-    const ticketsData = await this.getTicketsBasedOnRole(analyticsDto, user);
+    const ticketsData = await this.getTicketsBasedOnRole(analyticsDto, user, true);
+    
+    // Verificar se ticketsData foi retornado corretamente
+    if (!ticketsData) {
+      throw new InternalServerErrorException('Erro ao buscar tickets para gerar scores');
+    }
+    
     const tickets = ticketsData.tickets;
 
     // Gerar os últimos 12 meses
@@ -276,6 +327,7 @@ export class AnalyticsService {
   private async getTicketsBasedOnRole(
     getAnalyticsDto: GetAnalyticsDto,
     user: User,
+    closeTicket: boolean = false,
   ) {
     switch (user.role) {
       case UserRole.ADMIN:
@@ -285,85 +337,27 @@ export class AnalyticsService {
           return await this.ticketsService.getTicketsAnalytics(
             getAnalyticsDto,
             user.companyId,
+            closeTicket,
           );
         } else {
           // Todos os tickets da empresa
           return await this.ticketsService.getTicketsAnalytics(
             getAnalyticsDto,
             user.companyId,
+            closeTicket,
           );
         }
 
       case UserRole.MANAGER:
-        if (getAnalyticsDto.teamId) {
-          // Métricas da equipe (já validado)
-          return await this.ticketsService.getTicketsAnalytics(
-            getAnalyticsDto,
-            user.companyId,
-          );
-        }
+        return await this.ticketsService.getTicketsAnalytics(
+          getAnalyticsDto,
+          user.companyId,
+          closeTicket,
+        );
 
       default:
         throw new ForbiddenException('Role de usuário não reconhecida');
     }
-  }
-
-  async exportPdf(
-    user: User,
-    getAnalyticsDto: GetAnalyticsDto,
-  ): Promise<Buffer> {
-    // Buscar dados do analytics
-    const analyticsData = await this.getAnalytics(getAnalyticsDto, user);
-
-    // Criar documento PDF
-    const doc = new PDFDocument({
-      margin: 50,
-      size: 'A4',
-    });
-
-    // Buffer para armazenar o PDF
-    const buffers: Buffer[] = [];
-    doc.on('data', buffers.push.bind(buffers));
-    doc.on('end', () => {});
-
-    // Definir datas do período
-    const startDate = getAnalyticsDto.startDate
-      ? new Date(getAnalyticsDto.startDate)
-      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const endDate = getAnalyticsDto.endDate
-      ? new Date(getAnalyticsDto.endDate)
-      : new Date();
-
-    // Cabeçalho
-    this.addHeader(doc, startDate, endDate, user.company?.name || 'Empresa');
-
-    // Métricas principais
-    this.addMainMetrics(doc, analyticsData);
-
-    // Gráfico de satisfação por mês
-    this.addSatisfactionChart(doc, analyticsData.scoreAverageByMonth);
-
-    // Distribuição por canal
-    this.addChannelDistribution(doc, analyticsData.quantityOfTicketByChannel);
-
-    // Distribuição por equipes
-    this.addTeamDistribution(doc, analyticsData.quantityOfTicketByTeams);
-
-    // Ranking de usuários
-    this.addUserRanking(doc, analyticsData.rankingUsersByScore);
-
-    // Rodapé
-    this.addFooter(doc);
-
-    // Finalizar documento
-    doc.end();
-
-    // Aguardar conclusão e retornar buffer
-    return new Promise((resolve) => {
-      doc.on('end', () => {
-        resolve(Buffer.concat(buffers));
-      });
-    });
   }
 
   private addHeader(

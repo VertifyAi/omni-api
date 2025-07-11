@@ -148,11 +148,6 @@ export class CustomersService {
     phone: string,
   ): Promise<string | null> {
     try {
-      console.log('phone', phone);
-      console.log('process.env.RAPIDAPI_KEY', process.env.RAPIDAPI_KEY);
-      console.log('process.env.RAPIDAPI_HOST', process.env.RAPIDAPI_HOST);
-
-      // Primeira requisição para obter a URL da imagem de perfil
       const response = await axios.get(
         `https://whatsapp-profile-pic.p.rapidapi.com/wspic/url?phone=${phone}`,
         {
@@ -164,11 +159,8 @@ export class CustomersService {
         },
       );
 
-      // A API retorna diretamente a URL da imagem como string
       const profilePictureUrl = response.data;
-      console.log('profilePictureUrl', profilePictureUrl);
 
-      // Validar se a URL da imagem é válida
       if (
         !profilePictureUrl ||
         typeof profilePictureUrl !== 'string' ||
@@ -178,13 +170,11 @@ export class CustomersService {
         return null;
       }
 
-      // Validar se é uma URL válida
       if (!profilePictureUrl.startsWith('http')) {
         console.log('Profile picture URL is not a valid HTTP URL');
         return null;
       }
 
-      // Segunda requisição para baixar a imagem
       const profilePicture = await axios.get(profilePictureUrl, {
         responseType: 'arraybuffer',
         timeout: 15000, // 15 segundos de timeout para download
@@ -197,17 +187,10 @@ export class CustomersService {
         },
       });
 
-      console.log('profilePicture downloaded successfully');
-      console.log('Content-Type:', profilePicture.headers['content-type']);
-      console.log('Content-Length:', profilePicture.data.length);
-
-      // Validar se a imagem foi baixada corretamente
       if (!profilePicture.data || profilePicture.data.length === 0) {
-        console.log('Profile picture data is empty');
         return null;
       }
 
-      // Definir mimetype padrão se não estiver disponível
       const mimetype = profilePicture.headers['content-type'] || 'image/jpeg';
 
       const s3Service = new S3Service();
@@ -218,7 +201,6 @@ export class CustomersService {
         size: profilePicture.data.length,
       });
 
-      console.log('Image uploaded to S3:', s3Url);
       return s3Url;
     } catch (error) {
       console.error('Error downloading WhatsApp profile picture:', error);
@@ -226,7 +208,6 @@ export class CustomersService {
         console.error('Error response status:', error.response.status);
         console.error('Error response data:', error.response.data);
       }
-      // Retornar null em caso de erro para não quebrar o processo de criação do cliente
       return null;
     }
   }
