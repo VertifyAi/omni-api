@@ -366,8 +366,13 @@ export class TicketsService {
 
     // Atualizar propriedades do ticket
     ticket.status = changeTicketStatusDto.status;
-    ticket.userId = changeTicketStatusDto.userId;
-    ticket.priorityLevel = changeTicketStatusDto.priorityLevel;
+    if (changeTicketStatusDto.userId) {
+      ticket.userId = changeTicketStatusDto.userId;
+      ticket.lastMessageAt = new Date();
+    }
+    if (changeTicketStatusDto.priorityLevel) {
+      ticket.priorityLevel = changeTicketStatusDto.priorityLevel;
+    }
 
     if (changeTicketStatusDto.status === TicketStatus.CLOSED) {
       ticket.closedAt = new Date();
@@ -436,11 +441,13 @@ export class TicketsService {
    * Obtém os dados de análise de tickets
    * @param getAnalyticsDto Dados de análise
    * @param companyId ID da empresa
+   * @param closeTicket Se o ticket deve ser fechado
    * @returns Dados de análise
    */
   async getTicketsAnalytics(
     getAnalyticsDto: GetAnalyticsDto,
     companyId: number,
+    closeTicket: boolean = false,
   ) {
     // Garantir que ambas as datas tenham valores válidos
     if (!getAnalyticsDto.startDate) {
@@ -463,6 +470,10 @@ export class TicketsService {
 
     if (getAnalyticsDto.teamId) {
       where['areaId'] = parseInt(getAnalyticsDto.teamId);
+    }
+
+    if (closeTicket) {
+      where['status'] = TicketStatus.CLOSED;
     }
 
     const tickets = await this.ticketRepository.find({
@@ -565,6 +576,11 @@ export class TicketsService {
       .update(Ticket)
       .where('id = :ticketId', { ticketId });
 
+    const messageContent = await this.chooseMessageToSendWhenTicketIsChanged(
+      transferTicketDto,
+      currentUser,
+    );
+
     if (transferTicketDto.userId) {
       const user = await this.usersService.findOneById(
         transferTicketDto.userId,
@@ -616,7 +632,34 @@ export class TicketsService {
         priorityLevel: transferTicketDto.priorityLevel,
         status: TicketStatus.AI,
       });
+    } else if (transferTicketDto.closeTicket) {
+      updateQuery = updateQuery.set({
+        status: TicketStatus.CLOSED,
+        closedAt: new Date(),
+        lastMessageAt: new Date(),
+      });
     }
+
+    await this.createNewMessage(
+      'OMNIFY',
+      ticketId,
+      messageContent,
+      TicketMessageSender.OMNIFY,
+      TicketMessageType.TEXT,
+      currentUser.companyId,
+    );
+
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId },
+      relations: ['customer', 'agent'],
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    // envia mensagem para o whatsapp
+    await this.sendMessageToWhatsapp(ticket, messageContent);
 
     return await updateQuery.execute();
   }
@@ -824,9 +867,9 @@ export class TicketsService {
           ticketId,
           s3AudioUrl,
           TicketMessageSender.CUSTOMER,
-          customerName,
           TicketMessageType.AUDIO,
           companyId,
+          customerName,
         );
       }
 
@@ -857,9 +900,9 @@ export class TicketsService {
     ticketId: number,
     message: string,
     senderType: TicketMessageSender,
-    senderName: string,
     messageType: TicketMessageType,
     companyId: number,
+    senderName?: string,
   ) {
     const ticketMessage = this.ticketMessageRepository.create({
       senderIdentifier,
@@ -884,7 +927,7 @@ export class TicketsService {
       messageContent: message,
       messageType,
       senderType,
-      senderName,
+      senderName: senderName || null,
       senderIdentifier,
     });
     return ticketMessage;
@@ -924,9 +967,9 @@ export class TicketsService {
       ticket.id,
       messageContent,
       TicketMessageSender.AI,
-      ticket.agent.name,
       TicketMessageType.TEXT,
       ticket.companyId,
+      ticket.agent.name,
     );
 
     await this.sendMessageToWhatsapp(ticket, messageContent, ticket.agent.name);
@@ -1014,9 +1057,9 @@ export class TicketsService {
             ticket.id,
             messageData.audioUrl,
             TicketMessageSender.CUSTOMER,
-            buffer.customerName,
             TicketMessageType.AUDIO,
             ticket.companyId,
+            buffer.customerName,
           ),
         );
       } else {
@@ -1026,9 +1069,9 @@ export class TicketsService {
             ticket.id,
             messageData.content,
             TicketMessageSender.CUSTOMER,
-            buffer.customerName,
             TicketMessageType.TEXT,
             ticket.companyId,
+            buffer.customerName,
           ),
         );
       }
@@ -1126,16 +1169,23 @@ export class TicketsService {
   private async sendMessageToWhatsapp(
     ticket: Ticket,
     message: string,
-    senderName: string,
+    senderName?: string,
   ) {
     const whatsappPayload = {
       messaging_product: 'whatsapp',
       to: ticket.customer.phone,
       type: 'text',
-      text: {
-        body: `*${senderName}*\n\n${message}`,
-      },
+      text: {},
     };
+    if (senderName) {
+      whatsappPayload.text = {
+        body: `*${senderName}*\n\n${message}`,
+      };
+    } else {
+      whatsappPayload.text = {
+        body: message,
+      };
+    }
     try {
       await lastValueFrom(
         this.httpService.post(
@@ -1165,10 +1215,10 @@ export class TicketsService {
    * @returns Mensagem a ser enviada
    */
   private async chooseMessageToSendWhenTicketIsChanged(
-    ticketStatusDto: ChangeTicketStatusDto,
+    transferTicketDto: TransferTicketDto,
     currentUser: User,
-  ) {
-    if (ticketStatusDto.status === TicketStatus.CLOSED) {
+  ): Promise<string> {
+    if (transferTicketDto.closeTicket) {
       return `Obrigado por entrar em contato! Foi um prazer te ajudar até aqui! 😊
 
 Para nos ajudar a melhorar nosso atendimento, você poderia avaliar sua experiência conosco?
@@ -1182,9 +1232,33 @@ Para nos ajudar a melhorar nosso atendimento, você poderia avaliar sua experiê
 Sua opinião é muito importante para nós!`;
     }
 
-    if (ticketStatusDto.status === TicketStatus.IN_PROGRESS) {
-      return `A partir deste momento, nosso agente humano ${currentUser.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
+    if (transferTicketDto.userId) {
+      return `A partir deste momento, nosso especialista ${currentUser.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
     }
+
+    if (transferTicketDto.teamId) {
+      const team = await this.teamsService.findOneById(
+        transferTicketDto.teamId,
+        currentUser.companyId,
+      );
+      if (!team) {
+        throw new NotFoundException('Team not found');
+      }
+      return `A partir deste momento, nossa equipe ${team.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
+    }
+
+    if (transferTicketDto.agentId) {
+      const agent = await this.agentsService.findOneById(
+        transferTicketDto.agentId,
+        currentUser.companyId,
+      );
+      if (!agent) {
+        throw new NotFoundException('Agent not found');
+      }
+      return `A partir deste momento, nosso assistente virtual ${agent.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
+    }
+
+    return '';
   }
 
   /**

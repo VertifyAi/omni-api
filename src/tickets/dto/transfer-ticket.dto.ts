@@ -1,20 +1,24 @@
-import { IsOptional, IsNumber, IsEnum } from 'class-validator';
+import { IsOptional, IsNumber, IsEnum, IsBoolean } from 'class-validator';
 import { TicketPriorityLevel } from '../entities/ticket.entity';
 
 export class TransferTicketDto {
   @IsNumber()
   @IsOptional()
-  userId: number;
+  userId?: number;
 
   @IsEnum(TicketPriorityLevel)
   @IsOptional()
-  priorityLevel: TicketPriorityLevel;
+  priorityLevel?: TicketPriorityLevel;
 
   @IsNumber()
   @IsOptional()
-  teamId: number;
+  teamId?: number;
 
   @IsNumber()
   @IsOptional()
-  agentId: number;
+  agentId?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  closeTicket?: boolean;
 }

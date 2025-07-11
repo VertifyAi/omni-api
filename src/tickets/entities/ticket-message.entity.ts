@@ -11,7 +11,8 @@ import { Ticket } from './ticket.entity';
 export enum TicketMessageSender {
   AI = 'AI',
   USER = 'USER',
-  CUSTOMER = 'CUSTOMER'
+  CUSTOMER = 'CUSTOMER',
+  OMNIFY = 'OMNIFY',
 }
 
 export enum TicketMessageType {
@@ -32,7 +33,7 @@ export class TicketMessage {
   })
   message: string;
 
-  @Column({ name: 'sender_name' })
+  @Column({ name: 'sender_name', nullable: true })
   senderName: string;
 
   @Column({ name: 'sender_type' })

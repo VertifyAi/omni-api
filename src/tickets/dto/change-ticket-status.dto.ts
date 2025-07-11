@@ -14,9 +14,9 @@ export class ChangeTicketStatusDto {
 
   @IsNumber()
   @IsOptional()
-  userId: number;
+  userId?: number;
 
   @IsEnum(TicketPriorityLevel)
   @IsOptional()
-  priorityLevel: TicketPriorityLevel;
+  priorityLevel?: TicketPriorityLevel;
 }
