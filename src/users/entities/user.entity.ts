@@ -16,6 +16,7 @@ import { Team } from 'src/teams/entities/teams.entity';
 import { Exclude } from 'class-transformer';
 import { Company } from 'src/companies/entities/company.entity';
 import { Workflow } from 'src/workflows/entities/workflow.entity';
+import { Ticket } from 'src/tickets/entities/ticket.entity';
 export enum UserRole {
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
@@ -87,4 +88,7 @@ export class User {
   @OneToOne(() => Workflow, (workflow) => workflow.workflowUser)
   @JoinColumn({ name: 'workflow_id' })
   workflow: Workflow;
+
+  @OneToMany(() => Ticket, (ticket) => ticket.user)
+  tickets: Ticket[];
 }

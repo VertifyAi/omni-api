@@ -14,6 +14,7 @@ import { Company } from 'src/companies/entities/company.entity';
 import { Customer } from 'src/customers/entities/customer.entity';
 import { Agent } from 'src/agents/entities/agent.entity';
 import { Team } from 'src/teams/entities/teams.entity';
+import { User } from 'src/users/entities/user.entity';
 
 export enum TicketStatus {
   AI = 'AI',
@@ -105,4 +106,8 @@ export class Ticket {
   @ManyToOne(() => Team, (team) => team.tickets)
   @JoinColumn({ name: 'area_id' })
   area: Team;
+
+  @ManyToOne(() => User, (user) => user.tickets)
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 }

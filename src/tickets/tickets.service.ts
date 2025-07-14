@@ -36,6 +36,7 @@ import { TransferTicketDto } from './dto/transfer-ticket.dto';
 import { S3Service } from 'src/integrations/aws/s3.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { FindAllTicketsDto } from './dto/find-all-tickets.dto';
 
 interface MessageData {
   content: string;
@@ -203,46 +204,51 @@ export class TicketsService {
    * @param currentUser Usuário atual
    * @returns Tickets
    */
-  async findAllTickets(currentUser: User): Promise<Ticket[]> {
-    let where: FindOptionsWhere<Ticket> | FindOptionsWhere<Ticket>[] = {
+  async findAllTickets(
+    currentUser: User,
+    findAllTicketsDto: FindAllTicketsDto,
+  ): Promise<Ticket[]> {
+    const { limit, page, search } = findAllTicketsDto;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const queryBuilder = this.ticketRepository.createQueryBuilder('ticket');
+
+    queryBuilder
+      .leftJoinAndSelect('ticket.customer', 'customer')
+      .leftJoinAndSelect('ticket.company', 'company')
+      .leftJoinAndSelect('ticket.ticketMessages', 'ticketMessages')
+      .leftJoinAndSelect('ticket.area', 'area')
+      .leftJoinAndSelect('ticket.agent', 'agent')
+      .leftJoinAndSelect('ticket.user', 'user');
+
+    queryBuilder.andWhere('ticket.companyId = :companyId', {
       companyId: currentUser.companyId,
-    };
+    });
+
+    if (search) {
+      queryBuilder.andWhere('customer.name Like :search', {
+        search: `%${search}%`,
+      });
+    }
 
     if (currentUser.role === UserRole.USER) {
-      where = {
-        ...where,
-        userId: In([currentUser.id || 0, 0]),
-        areaId: currentUser.areaId,
-      };
+      queryBuilder.andWhere(
+        '(ticket.userId = :currentUserId OR ticket.userId IS NULL) AND ticket.areaId = :areaId',
+        { currentUserId: currentUser.id || 0, areaId: currentUser.areaId },
+      );
     } else if (currentUser.role === UserRole.MANAGER) {
       if (currentUser.areaId && currentUser.id) {
-        const baseWhere = { companyId: currentUser.companyId };
-        where = [
-          {
-            ...baseWhere,
-            areaId: currentUser.areaId,
-          },
-          {
-            ...baseWhere,
-            userId: currentUser.id,
-          },
-        ];
+        queryBuilder.andWhere(
+          '(ticket.areaId = :areaId OR ticket.userId = :currentUserId)',
+          { areaId: currentUser.areaId, currentUserId: currentUser.id },
+        );
       }
     }
 
-    console.log(where, "where");
+    queryBuilder.orderBy('ticket.createdAt', 'DESC');
+    queryBuilder.skip(skip).take(Number(limit));
 
-    return await this.ticketRepository.find({
-      where,
-      relations: {
-        company: true,
-        customer: true,
-        ticketMessages: true,
-      },
-      order: {
-        createdAt: 'DESC',
-      },
-    });
+    return await queryBuilder.getMany();
   }
 
   /**

@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Patch,
+  Query,
 } from '@nestjs/common';
 import { TicketsService } from './tickets.service';
 import { AuthGuard } from 'src/guards/auth.guard';
@@ -14,6 +15,7 @@ import { CreateAITicketMessageDto } from './dto/create-ai-ticket-message.dto';
 import { ChangeTicketStatusDto } from './dto/change-ticket-status.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { TransferTicketDto } from './dto/transfer-ticket.dto';
+import { FindAllTicketsDto } from './dto/find-all-tickets.dto';
 
 @Controller('tickets')
 export class TicketsController {
@@ -21,8 +23,8 @@ export class TicketsController {
 
   @UseGuards(AuthGuard)
   @Get()
-  async findAll(@Request() req) {
-    return await this.ticketsService.findAllTickets(req.user);
+  async findAll(@Request() req, @Query() findAllTicketsDto: FindAllTicketsDto) {
+    return await this.ticketsService.findAllTickets(req.user, findAllTicketsDto);
   }
 
   @Post()
