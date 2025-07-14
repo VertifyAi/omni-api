@@ -1,4 +1,4 @@
-import { IsArray, IsNotEmpty, IsString } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class WhatsappIntegrationDto {
   @IsString()
@@ -6,8 +6,8 @@ export class WhatsappIntegrationDto {
   access_token: string;
 
   @IsString()
-  @IsNotEmpty()
-  data_access_expiration_time: string;
+  @IsOptional()
+  data_access_expiration_time?: string;
 
   @IsString()
   @IsNotEmpty()
