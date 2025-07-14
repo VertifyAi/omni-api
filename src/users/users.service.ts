@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -119,7 +124,12 @@ export class UsersService {
    * @param endDate Data de fim
    * @returns Ranking de usuários por score
    */
-  async getRankingUsersByScore(companyId: number, startDate: Date, endDate: Date, teamId?: string) {
+  async getRankingUsersByScore(
+    companyId: number,
+    startDate: Date,
+    endDate: Date,
+    teamId?: string,
+  ) {
     // Buscar tickets fechados no período especificado
     const tickets = await this.ticketsService.getTicketsAnalytics(
       {
@@ -132,28 +142,31 @@ export class UsersService {
 
     // Filtrar apenas tickets fechados com score válido e que têm userId
     const closedTicketsWithScore = tickets.tickets.filter(
-      (ticket) => 
-        ticket.status === TicketStatus.CLOSED && 
-        ticket.score !== null && 
-        ticket.score !== undefined && 
+      (ticket) =>
+        ticket.status === TicketStatus.CLOSED &&
+        ticket.score !== null &&
+        ticket.score !== undefined &&
         ticket.score > 0 &&
-        ticket.userId !== null && 
-        ticket.userId !== undefined
+        ticket.userId !== null &&
+        ticket.userId !== undefined,
     );
 
     // Agrupar tickets por userId e calcular média do score
-    const userScores = closedTicketsWithScore.reduce((acc, ticket) => {
-      const userId = ticket.userId;
-      
-      if (!acc[userId]) {
-        acc[userId] = { totalScore: 0, count: 0 };
-      }
-      
-      acc[userId].totalScore += ticket.score;
-      acc[userId].count += 1;
-      
-      return acc;
-    }, {} as Record<number, { totalScore: number; count: number }>);
+    const userScores = closedTicketsWithScore.reduce(
+      (acc, ticket) => {
+        const userId = ticket.userId;
+
+        if (!acc[userId]) {
+          acc[userId] = { totalScore: 0, count: 0 };
+        }
+
+        acc[userId].totalScore += ticket.score;
+        acc[userId].count += 1;
+
+        return acc;
+      },
+      {} as Record<number, { totalScore: number; count: number }>,
+    );
 
     // Buscar informações dos usuários e calcular score médio
     const userRankings: Array<{
@@ -163,11 +176,11 @@ export class UsersService {
       averageScore: number;
       totalTickets: number;
     }> = [];
-    
+
     for (const [userIdStr, scoreData] of Object.entries(userScores)) {
       const userId = parseInt(userIdStr);
       const user = await this.findOneById(userId, companyId);
-      
+
       if (user) {
         const averageScore = scoreData.totalScore / scoreData.count;
         userRankings.push({
@@ -184,5 +197,16 @@ export class UsersService {
     return userRankings
       .sort((a, b) => b.averageScore - a.averageScore)
       .slice(0, 10);
+  }
+
+  /**
+   * Atualiza a senha de um usuário
+   * @param id ID do usuário
+   * @param password Nova senha
+   */
+  async updatePassword(id: number, password: string) {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    await this.userRepository.update(id, { password: hashedPassword });
   }
 }

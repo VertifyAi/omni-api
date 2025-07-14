@@ -204,7 +204,7 @@ export class TicketsService {
    * @returns Tickets
    */
   async findAllTickets(currentUser: User): Promise<Ticket[]> {
-    let where: FindOptionsWhere<Ticket> = {
+    let where: FindOptionsWhere<Ticket> | FindOptionsWhere<Ticket>[] = {
       companyId: currentUser.companyId,
     };
 
@@ -215,11 +215,22 @@ export class TicketsService {
         areaId: currentUser.areaId,
       };
     } else if (currentUser.role === UserRole.MANAGER) {
-      where = {
-        ...where,
-        areaId: currentUser.areaId,
-      };
+      if (currentUser.areaId && currentUser.id) {
+        const baseWhere = { companyId: currentUser.companyId };
+        where = [
+          {
+            ...baseWhere,
+            areaId: currentUser.areaId,
+          },
+          {
+            ...baseWhere,
+            userId: currentUser.id,
+          },
+        ];
+      }
     }
+
+    console.log(where, "where");
 
     return await this.ticketRepository.find({
       where,
