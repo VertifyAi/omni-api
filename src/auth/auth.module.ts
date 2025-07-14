@@ -14,6 +14,7 @@ import { UtilsModule } from 'src/utils/utils.module';
 import { Company } from 'src/companies/entities/company.entity';
 import { HttpModule } from '@nestjs/axios';
 import { TicketsModule } from 'src/tickets/tickets.module';
+import { ForgotPasswordToken } from './entities/forgot-password-tokens.entity';
 @Module({
   imports: [
     ConfigModule,
@@ -31,7 +32,7 @@ import { TicketsModule } from 'src/tickets/tickets.module';
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([User, Company]),
+    TypeOrmModule.forFeature([User, Company, ForgotPasswordToken]),
   ],
   providers: [AuthService, UsersService, CompaniesService],
   controllers: [AuthController],

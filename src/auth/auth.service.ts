@@ -11,6 +11,11 @@ import { SignUpDto } from './dto/sign-up.dto';
 import * as bcrypt from 'bcrypt';
 import { lastValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ForgotPasswordToken } from './entities/forgot-password-tokens.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { MoreThan, Repository } from 'typeorm';
+import { RecoverPasswordDto } from './dto/recover-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -19,9 +24,13 @@ export class AuthService {
     private companiesService: CompaniesService,
     private jwtService: JwtService,
     private httpService: HttpService,
+    @InjectRepository(ForgotPasswordToken)
+    private forgotPasswordTokenRepository: Repository<ForgotPasswordToken>,
   ) {}
 
-  async signUp(signUpDto: SignUpDto): Promise<{ access_token: string }> {
+  async signUp(
+    signUpDto: SignUpDto,
+  ): Promise<{ access_token: string; user: User }> {
     // Validar se as senhas coincidem
     if (signUpDto.password !== signUpDto.passwordConfirmation) {
       throw new BadRequestException('As senhas não coincidem');
@@ -84,6 +93,7 @@ export class AuthService {
 
     return {
       access_token: await this.jwtService.signAsync(payload),
+      user: user,
     };
   }
 
@@ -116,6 +126,61 @@ export class AuthService {
     };
   }
 
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const user = await this.usersService.findOneByEmail(
+      forgotPasswordDto.email,
+    );
+    if (!user) {
+      throw new UnauthorizedException('Usuário não encontrado');
+    }
+
+    const existingToken = await this.forgotPasswordTokenRepository.findOne({
+      where: { email: user.email, used: false, expiresAt: MoreThan(new Date()) },
+    });
+    if (existingToken) {
+      throw new BadRequestException('Já existe um token de recuperação de senha para este usuário');
+    }
+
+    const token = await this.jwtService.signAsync({ email: user.email });
+    await this.forgotPasswordTokenRepository.save({
+      token,
+      email: user.email,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24), // 24 horas
+    } as ForgotPasswordToken);
+    const resetPasswordUrl = `${process.env.FRONTEND_URL}/recover?token=${token}`;
+
+    await this.sendResetPasswordEmail(user.email, resetPasswordUrl);
+  }
+
+  async recoverPassword(recoverPasswordDto: RecoverPasswordDto) {
+    const forgotPasswordToken =
+      await this.forgotPasswordTokenRepository.findOne({
+        where: {
+          token: recoverPasswordDto.token,
+          used: false,
+          expiresAt: MoreThan(new Date()),
+        },
+      });
+    if (!forgotPasswordToken) {
+      throw new UnauthorizedException('Token inválido ou expirado');
+    }
+    await this.forgotPasswordTokenRepository.update(forgotPasswordToken.id, {
+      used: true,
+      usedAt: new Date(),
+    });
+    const user = await this.usersService.findOneByEmail(
+      forgotPasswordToken.email,
+    );
+    if (!user) {
+      throw new UnauthorizedException('Usuário não encontrado');
+    }
+    await this.usersService.updatePassword(
+      user.id,
+      recoverPasswordDto.password,
+    );
+    return { message: 'Senha atualizada com sucesso' };
+  }
+
   private async sendWelcomeEmail(email: string, firstName: string) {
     const response = await lastValueFrom(
       this.httpService.post(
@@ -127,5 +192,26 @@ export class AuthService {
       ),
     );
     return response.data;
+  }
+
+  private async sendResetPasswordEmail(
+    email: string,
+    resetPasswordUrl: string,
+  ) {
+    try {
+      const response = await lastValueFrom(
+        this.httpService.post(
+          'https://n8n.vertify.com.br/webhook/da8eefce-abd8-42df-a6d4-6649654ea653',
+          {
+            email,
+            resetPasswordUrl,
+          },
+        ),
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error(error);
+    }
   }
 }
