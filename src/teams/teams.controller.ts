@@ -10,6 +10,7 @@ import {
   Delete,
   UploadedFile,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TeamsService } from './teams.service';
@@ -20,6 +21,7 @@ import { Roles } from 'src/decorators/roles.decorator';
 import { UserRole } from 'src/users/entities/user.entity';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { UploadFileDto } from './dto/upload-image.dto';
+import { FindAllTeamsDto } from './dto/find-all-teams.dto';
 
 @Controller('teams')
 export class TeamsController {
@@ -35,8 +37,8 @@ export class TeamsController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Get()
-  findAll(@Request() req) {
-    return this.teamsService.findAll(req.user.companyId);
+  findAll(@Request() req, @Query() findAllTeamsDto: FindAllTeamsDto,) {
+    return this.teamsService.findAll(req.user.companyId, findAllTeamsDto);
   }
 
   @UseGuards(AuthGuard, RolesGuard)

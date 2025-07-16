@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { Team } from './entities/teams.entity';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { User } from 'src/users/entities/user.entity';
@@ -9,6 +9,7 @@ import { In } from 'typeorm';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { S3Service } from 'src/integrations/aws/s3.service';
 import { UploadFileDto } from './dto/upload-image.dto';
+import { FindAllTeamsDto } from './dto/find-all-teams.dto';
 
 @Injectable()
 export class TeamsService {
@@ -66,9 +67,25 @@ export class TeamsService {
     return teamWithRelations || savedTeam;
   }
 
-  async findAll(companyId: number): Promise<Team[]> {
-    const teams = await this.teamsRepository.find({
-      where: { companyId },
+  async findAll(
+    companyId: number,
+    findAllTeamsDto: FindAllTeamsDto,
+  ): Promise<{ teams: Team[]; total: number }> {
+    const { limit, page, search } = findAllTeamsDto;
+    const skip = (Number(page) - 1) * Number(limit);
+    const where = { companyId };
+
+    if (search) {
+      where['name'] = ILike(`%${search}%`);
+    }
+
+    const [teams, total] = await this.teamsRepository.findAndCount({
+      skip,
+      where,
+      take: Number(limit),
+      order: {
+        name: 'ASC',
+      },
       relations: {
         owner: true,
         members: true,
@@ -95,7 +112,10 @@ export class TeamsService {
       }
     }
 
-    return teams;
+    return {
+      teams,
+      total,
+    };
   }
 
   async update(id: number, updateTeamDto: UpdateTeamDto, companyId: number) {
