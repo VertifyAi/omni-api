@@ -29,6 +29,7 @@ import { PageService } from '../../utils/services/page.service';
 import { InteractionExample } from '../../agents/entities/interaction-example.entity';
 import { TeamsToRedirect } from '../../agents/entities/teams-to-redirect.entity';
 import { UsersAreas } from '../../teams/entities/users_areas.entity';
+import { AgentsllmKnowledgeBase } from 'src/agents/entities/agents-llm-knowledge-base.entity';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { UsersAreas } from '../../teams/entities/users_areas.entity';
       InteractionExample,
       TeamsToRedirect,
       UsersAreas,
+      AgentsllmKnowledgeBase
     ]),
   ],
   providers: [
