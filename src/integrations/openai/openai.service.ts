@@ -12,6 +12,7 @@ import { CreateAgentDto } from 'src/agents/dto/create-agent.dto';
 import { screeningSystemPrompt } from 'src/agents/prompts';
 import { Team } from 'src/teams/entities/teams.entity';
 import * as FormData from 'form-data';
+import { UploadFileDto } from 'src/agents/dto/upload-image.dto';
 
 type OpenAIStreamResponse =
   | string
@@ -441,15 +442,15 @@ export class OpenAIService {
   }
 
   /**
-   * Cria um vector store para o assistente
-   * @param assistantId - O ID do assistente
+   * Cria um vector store
    * @param vectorStoreName - O nome do vector store
    * @returns A resposta da OpenAI
    */
-  async createVectorStore(
-    assistantId: string,
-    vectorStoreName: string,
-  ): Promise<{ id: string }> {
+  async createVectorStore(vectorStoreName: string): Promise<{
+    id: string;
+    object: string;
+    created_at: number;
+  }> {
     try {
       const { data } = await lastValueFrom(
         this.httpService.post(
@@ -457,6 +458,72 @@ export class OpenAIService {
           {
             name: vectorStoreName,
           },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2',
+              Authorization: this.openaiApiKey,
+            },
+          },
+        ),
+      );
+      return data;
+    } catch (error) {
+      this.logger.error(
+        `Erro ao chamar a API de chat da OpenAI: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Busca um vector store por id
+   * @param vectorStoreId
+   * @returns A resposta da OpenAI
+   */
+  async findVectorStoreById(vectorStoreId: string): Promise<{
+    id: string;
+    object: string;
+    created_at: number;
+  }> {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get(
+          this.configService.get('OPENAI_API_BASEURL') +
+            '/vector_stores/' +
+            vectorStoreId,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2',
+              Authorization: this.openaiApiKey,
+            },
+          },
+        ),
+      );
+      return data;
+    } catch (error) {
+      this.logger.error(
+        `Erro ao chamar a API de chat da OpenAI: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Deleta um vector store
+   * @param vectorStoreId
+   * @returns A resposta da OpenAI
+   */
+  async deleteVectorStoreById(vectorStoreId: string) {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.delete(
+          this.configService.get('OPENAI_API_BASEURL') +
+            '/vector_stores/' +
+            vectorStoreId,
           {
             headers: {
               'Content-Type': 'application/json',
@@ -489,7 +556,6 @@ export class OpenAIService {
     try {
       const formData = new FormData();
       const jsonString = JSON.stringify(jsonData, null, 2);
-      console.log(jsonString, 'jsonString');
       const buffer = Buffer.from(jsonString, 'utf8');
 
       formData.append('file', buffer, {
@@ -571,7 +637,11 @@ export class OpenAIService {
    * @returns O ID do arquivo criado
    */
   async addJsonToVectorStore(
-    vectorStore: { id: string },
+    vectorStore: {
+      id: string;
+      object: string;
+      created_at: number;
+    },
     jsonData: Record<string, unknown> | unknown[],
     fileName?: string,
   ): Promise<string> {
@@ -596,14 +666,55 @@ export class OpenAIService {
   }
 
   /**
+   * Faz o upload de um arquivo na OpenAI
+   */
+  async uploadFile(uploadFileDto: UploadFileDto) {
+    const formData = new FormData();
+
+    formData.append('file', uploadFileDto.buffer, {
+      filename: uploadFileDto.originalname,
+      contentType: 'application/json',
+    });
+    formData.append('purpose', 'assistants');
+
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.post(
+          this.configService.get('OPENAI_API_BASEURL') + '/files',
+          formData,
+          {
+            headers: {
+              ...formData.getHeaders(),
+              Authorization: this.openaiApiKey,
+            },
+          },
+        ),
+      );
+
+      this.logger.log(`Arquivo JSON enviado com sucesso. ID: ${data.id}`);
+      return data.id;
+    } catch (error) {
+      this.logger.error(
+        `Erro ao fazer upload do arquivo JSON: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Vincula um vector store a um assistente
    * @param assistantId - O ID do assistente
-   * @param vectorStoreId - O ID do vector store
+   * @param vectorStore - O vector store
    * @returns A resposta da OpenAI
    */
   async attachVectorStoreToAssistant(
     assistantId: string,
-    vectorStore: { id: string },
+    vectorStore: {
+      id: string;
+      object: string;
+      created_at: number;
+    },
   ): Promise<unknown> {
     try {
       const { data } = await lastValueFrom(

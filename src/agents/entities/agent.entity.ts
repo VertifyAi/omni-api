@@ -13,6 +13,7 @@ import { Ticket } from 'src/tickets/entities/ticket.entity';
 import { InteractionExample } from './interaction-example.entity';
 import { TeamsToRedirect } from './teams-to-redirect.entity';
 import { Workflow } from 'src/workflows/entities/workflow.entity';
+import { AgentsllmKnowledgeBase } from './agents-llm-knowledge-base.entity';
 
 export enum AgentObjective {
   SCREENING = 'screening',
@@ -57,6 +58,9 @@ export class Agent {
   @Column({ name: 'presentation_example' })
   presentationExample: string;
 
+  @Column({ name: 'profile_picture' })
+  profilePicture: string;
+
   @Column({ name: 'llm_assistant_id' })
   llmAssistantId: string;
 
@@ -78,8 +82,11 @@ export class Agent {
   @OneToMany(() => Ticket, (ticket) => ticket.agent)
   tickets: Ticket[];
 
-  @OneToMany(() => TeamsToRedirect, (team) => team.agentId)
+  @OneToMany(() => TeamsToRedirect, (team) => team.agent)
   teamsToRedirect: TeamsToRedirect[];
+
+  @OneToMany(() => AgentsllmKnowledgeBase, (agentsllmKnowledgeBase) => agentsllmKnowledgeBase.agent)
+  llmKnowledgeBase: AgentsllmKnowledgeBase[];
 
   @OneToMany(() => InteractionExample, (interaction) => interaction.agentId)
   interactionExamples: InteractionExample[];

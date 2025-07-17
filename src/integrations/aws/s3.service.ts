@@ -30,11 +30,15 @@ export class S3Service {
   /**
    * Uploads a file to the S3 bucket
    * @param file - The file to upload
+   * @param bucketName - The bucket name
    * @returns The URL of the uploaded file
    */
-  async uploadFile(file: UploadFileDto) {
+  async uploadFile(
+    file: UploadFileDto,
+    bucketName: string = 'omni-profile-images',
+  ) {
     const command = new PutObjectCommand({
-      Bucket: 'omni-profile-images',
+      Bucket: bucketName,
       Key: file.originalname,
       Body: file.buffer,
     });

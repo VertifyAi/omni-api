@@ -9,10 +9,16 @@ import { IntegrationsModule } from 'src/integrations/integrations.module';
 import { TeamsModule } from 'src/teams/teams.module';
 import { InteractionExample } from './entities/interaction-example.entity';
 import { TeamsToRedirect } from './entities/teams-to-redirect.entity';
+import { AgentsllmKnowledgeBase } from './entities/agents-llm-knowledge-base.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Agent, InteractionExample, TeamsToRedirect]),
+    TypeOrmModule.forFeature([
+      Agent,
+      InteractionExample,
+      TeamsToRedirect,
+      AgentsllmKnowledgeBase,
+    ]),
     JwtModule,
     ConfigModule,
     IntegrationsModule,
