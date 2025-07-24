@@ -207,7 +207,7 @@ export class TicketsService {
   async findAllTickets(
     currentUser: User,
     findAllTicketsDto: FindAllTicketsDto,
-  ): Promise<Ticket[]> {
+  ) {
     const { limit, page, search } = findAllTicketsDto;
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -248,7 +248,13 @@ export class TicketsService {
     queryBuilder.orderBy('ticket.createdAt', 'DESC');
     queryBuilder.skip(skip).take(Number(limit));
 
-    return await queryBuilder.getMany();
+    const tickets = await queryBuilder.getManyAndCount();
+
+    return {
+      tickets: tickets[0],
+      total: tickets[1],
+      totalPages: Math.ceil(tickets[1] / Number(limit)),
+    };
   }
 
   /**
@@ -977,7 +983,7 @@ export class TicketsService {
       throw new NotFoundException('Team not found');
     }
 
-    const messageContent = `A partir deste momento, nossa equipe ${team.name} assumirá a conversa para te auxiliar com ainda mais atenção. Foi um prazer te ajudar até aqui!`;
+    const messageContent = `Seu atendimento será transferido para a equipe ${team.name}. Por gentileza, aguarde um momento até que alguém possa atendê-lo.`;
 
     await this.createNewMessage(
       ticket.customer.phone,
@@ -991,12 +997,21 @@ export class TicketsService {
 
     await this.sendMessageToWhatsapp(ticket, messageContent, ticket.agent.name);
 
-    return await this.ticketRepository.save({
+    const updatedTicket = {
       ...ticket,
       status: TicketStatus.IN_PROGRESS,
       areaId: team.id,
+      agentId: () => 'NULL',
       priorityLevel: args.priority_level,
-    });
+    };
+
+    let updateQuery = this.ticketRepository
+      .createQueryBuilder()
+      .update(Ticket)
+      .where('id = :ticketId', { ticketId: ticket.id });
+
+    updateQuery = updateQuery.set(updatedTicket);
+    updateQuery.execute();
   }
 
   /**
@@ -1080,6 +1095,7 @@ export class TicketsService {
           ),
         );
       } else {
+        console.log(messageData);
         ticketMessages.push(
           await this.createNewMessage(
             buffer.customerPhone,

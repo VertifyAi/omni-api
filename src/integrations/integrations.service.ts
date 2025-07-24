@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Integration, IntegrationType } from './entities/integration.entity';
@@ -24,8 +24,82 @@ export class IntegrationsService {
    */
   async whatsappIntegration(
     currentUser: User,
-    whatsappIntegrationDto: WhatsappIntegrationDto,
+    code: string,
   ): Promise<Integration> {
+    let whatsappIntegrationDto: WhatsappIntegrationDto;
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.get(
+          `https://graph.facebook.com/v23.0/oauth/access_token` +
+            `?client_id=${process.env.META_APP_ID}` +
+            `&client_secret=${process.env.META_APP_SECRET}` +
+            `&code=${code}`,
+        ),
+      );
+
+      if (data.error) {
+        throw new BadRequestException(data.error);
+      }
+
+      const accessToken = data.access_token;
+      whatsappIntegrationDto = new WhatsappIntegrationDto();
+      whatsappIntegrationDto.access_token = accessToken;
+
+      const debugRes = await lastValueFrom(
+        this.httpService.get(
+          `https://graph.facebook.com/v23.0/debug_token` +
+            `?input_token=${accessToken}` +
+            `&access_token=${process.env.META_APP_SECRET}`,
+        ),
+      );
+      const debugData = debugRes.data;
+
+      if (debugData.error) {
+        throw new BadRequestException(debugData.error);
+      }
+
+      if (!debugData.owned_business_accounts?.data?.length) {
+        throw new BadRequestException('No WABA accounts owned');
+      }
+
+      const wabaIds = debugData.data.granular_scopes
+        .filter((item: { scope: string; target_ids: string[] }) => {
+          console.log(item);
+          return item.scope === 'whatsapp_business_management';
+        })
+        .map(
+          (item: { scope: string; target_ids: string[] }) => item.target_ids,
+        );
+
+      if (!wabaIds) {
+        throw new Error('Nenhuma conta de WhatsApp Business encontrada');
+      }
+
+      whatsappIntegrationDto.waba_id = wabaIds[0];
+      const hookRes = await lastValueFrom(
+        this.httpService.post(
+          `https://graph.facebook.com/v23.0/${wabaIds[0]}/subscribed_apps`,
+          {
+            override_callback_uri: 'https://api.vertify.com.br/webhook',
+            subscribed_fields: ['messages'],
+            verify_token: process.env.META_VERIFY_TOKEN,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        ),
+      );
+      const hookData = hookRes.data;
+
+      if (hookData.error) {
+        throw new BadRequestException(hookData.error);
+      }
+    } catch (error) {
+      throw new Error(error);
+    }
+
     let integration = await this.integrationRepository.findOneBy({
       companyId: currentUser.companyId,
       type: IntegrationType.WHATSAPP,
@@ -154,18 +228,17 @@ export class IntegrationsService {
 
     try {
       const whatsappConfig = integration.config as WhatsappIntegrationDto;
-      for (const wabaId of whatsappConfig.waba_ids) {
-        await lastValueFrom(
-          this.httpService.delete(
-            `https://graph.facebook.com/v23.0/${wabaId}/subscribed_apps`,
-            {
-              headers: {
-                Authorization: `Bearer ${whatsappConfig.access_token}`,
-              },
+
+      await lastValueFrom(
+        this.httpService.delete(
+          `https://graph.facebook.com/v23.0/${whatsappConfig.waba_id}/subscribed_apps`,
+          {
+            headers: {
+              Authorization: `Bearer ${whatsappConfig.access_token}`,
             },
-          ),
-        );
-      }
+          },
+        ),
+      );
     } catch (error) {
       console.error(error);
     }

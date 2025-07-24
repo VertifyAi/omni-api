@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { IntegrationsService } from './integrations.service';
 import { AuthGuard } from 'src/guards/auth.guard';
-import { WhatsappIntegrationDto } from './dto/whatsapp-integration.dto';
 import { IntegrationType } from './entities/integration.entity';
 import { FreshdeskIntegrationDto } from './dto/freshdesk-integration.dto';
 
@@ -19,13 +18,10 @@ export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
 
   @Post('whatsapp')
-  async whatsappIntegration(
-    @Request() req,
-    @Body() whatsappIntegrationDto: WhatsappIntegrationDto,
-  ) {
+  async whatsappIntegration(@Request() req, @Body() body: { code: string }) {
     return await this.integrationsService.whatsappIntegration(
       req.user,
-      whatsappIntegrationDto,
+      body.code,
     );
   }
 
